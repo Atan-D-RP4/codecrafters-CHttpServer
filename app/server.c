@@ -7,20 +7,14 @@
 #include <errno.h>
 #include <unistd.h>
 
-struct server {
-	int server_fd;
-	int client_fd;
-};
-
-struct server simpleServer() {
+int simpleServer() {
 	// Disable output buffering
 	setbuf(stdout, NULL);
 
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
 	
-	int server_fd, client_addr_len;
-	struct sockaddr_in client_addr;
+	int server_fd;
 	
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd == -1) {
@@ -55,13 +49,8 @@ struct server simpleServer() {
 		printf("Listen failed: %s \n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	
-	printf("Waiting for a client to connect...\n");
-	client_addr_len = sizeof(client_addr);
-	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);	
-	printf("Client connected\n");
 
-	return (struct server) { server_fd, client_fd };
+	return server_fd;
 }
 
 void serve(int client_fd) {
@@ -69,7 +58,7 @@ void serve(int client_fd) {
 	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);
 	if (bytesread < 0) {
 		printf("Receive failed: %s \n", strerror(errno));
-		exit(EXIT_FAILURE);
+		return;
 	}
 
 	// Extract the path from the request
@@ -107,21 +96,42 @@ void serve(int client_fd) {
 	bytessent = send(client_fd, response, strlen(response), 0);
 	if (bytessent < 0) {
 		printf("Send failed: %s \n", strerror(errno));
-		exit(EXIT_FAILURE);
+		return;
 	}
 }
 
 int main() {
-	struct server newServer = simpleServer();
-	int server_fd = newServer.server_fd;
-	int client_fd = newServer.client_fd;
-
-	if (!fork()) {
-		serve(client_fd);
-		close(client_fd);
-		exit(0);
+	int server_fd = simpleServer();
+	
+	int client_addr_len;
+	struct sockaddr_in client_addr;
+	
+	while(1) {
+		printf("Waiting for a client to connect...\n");
+		client_addr_len = sizeof(client_addr);
+		int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);	
+		if (client_fd < 0) {
+			printf("Accept failed: %s \n", strerror(errno));
+			continue;
+		}
+		printf("Client connected\n");
+	
+		pid_t pid = fork();
+        if (pid == -1) {
+            printf("Fork failed: %s\n", strerror(errno));
+            close(client_fd);
+            continue;
+        } else if (pid == 0) {
+            // Child process
+            close(server_fd);
+            serve(client_fd);
+            exit(0);
+        } else {
+            // Parent process
+            close(client_fd);
+        }
 	}
-	close(client_fd);
+	close(server_fd);
 
 	return 0;
 }
