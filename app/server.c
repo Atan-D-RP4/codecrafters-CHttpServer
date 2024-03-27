@@ -102,10 +102,12 @@ void serve(int client_fd) {
 		reqPath = strtok(reqPath, "/");
 		reqPath = strtok(NULL, "/");
 		char *filename = strtok(reqPath, " ");
-		printf("Filename: %s\n", filename);
 
 		char *pathHeader = "/tmp/data/codecrafters.io/http-server-tester/";
 		strcat(pathHeader, filename);
+
+		printf("Filename: %s\n", filename);
+
 		FILE *fp = fopen(filename, "rb");
 		if (!fp) {
 			printf("File not found: %s\n", filename);
