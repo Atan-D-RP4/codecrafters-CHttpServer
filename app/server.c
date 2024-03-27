@@ -13,13 +13,11 @@ struct server {
 };
 
 struct server simpleServer() {
-	
 	// Disable output buffering
 	setbuf(stdout, NULL);
 
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
-
 	
 	int server_fd, client_addr_len;
 	struct sockaddr_in client_addr;
@@ -60,7 +58,6 @@ struct server simpleServer() {
 	
 	printf("Waiting for a client to connect...\n");
 	client_addr_len = sizeof(client_addr);
-	
 	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);	
 	printf("Client connected\n");
 
@@ -68,9 +65,7 @@ struct server simpleServer() {
 }
 
 int main() {
-	
 	struct server newServer = simpleServer();
-
 	int server_fd = newServer.server_fd;
 	int client_fd = newServer.client_fd;
 
@@ -88,10 +83,10 @@ int main() {
 	int bytessent;
 	char response[512];
 	int contentLength;
+
 	if (strcmp(reqPath, "/") == 0) {
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World");
-	 } 
-	if (strncmp(reqPath, "/echo/", 6) == 0) {
+	 } else if (strncmp(reqPath, "/echo/", 6) == 0) {
 		// parse the content from the request
 		reqPath = strtok(reqPath, "/");
 		reqPath = strtok(NULL, "");
@@ -100,12 +95,17 @@ int main() {
 		printf("Sending Response: %s\n", response);
 	} else if (strcmp(reqPath, "/user-agent") == 0) {
 		// parse the user-agent from the request
+		reqPath = strtok(NULL, "\r\n");
+		reqPath = strtok(NULL, "\r\n");
+		reqPath = strtok(NULL, "\r\n");
+
+		// parse the body from the request
 		char *body = strtok(reqPath, " "); // body -> user-agent	
 		body = strtok(NULL, " "); // body -> curl/x.x.x
 		contentLength = strlen(body);								
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, body);
 	} else {
-		char *response = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
+		sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
 	}
 
 	bytessent = send(client_fd, response, strlen(response), 0);
