@@ -58,9 +58,27 @@ int main() {
 	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);	
 	printf("Client connected\n");
 
-	char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World";
-	
-	int bytessent = send(client_fd, response, strlen(response), 0);
+	char readbuf[1024];
+	char path[512];
+	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);
+	if (bytesread < 0) {
+		printf("Receive failed: %s \n", strerror(errno));
+		return 1;
+	}
+
+	// Extract the path from the request
+	char *reqPath = strtok(readbuf, " ");
+	reqPath = strtok(NULL, " ");
+
+	int bytessent;
+	if (strcmp(reqPath, "/") == 0) {
+		char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World";
+		bytessent = send(client_fd, response, strlen(response), 0);
+	} else {
+		char *response = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
+		bytessent = send(client_fd, response, strlen(response), 0);
+	}
+
 	if (bytessent < 0) {
 		printf("Send failed: %s \n", strerror(errno));
 		return 1;
