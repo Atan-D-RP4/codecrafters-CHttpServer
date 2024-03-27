@@ -96,10 +96,6 @@ void serve(int client_fd) {
 		body = strtok(NULL, " "); // body -> curl/x.x.x
 		contentLength = strlen(body);								
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, body);
-	} else if (strcmp(reqPath, "/redirect") == 0) {
-		sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
-	} else if (strcmp(reqPath, "/error") == 0) {
-		sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
 	} else if (strncmp(reqPath, "/files/", 7) == 0 && strcmp(method, "POST") == 0) {
 		method = strtok(NULL , "\r\n");
 		method = strtok(NULL , "\r\n");
@@ -121,7 +117,11 @@ void serve(int client_fd) {
 			printf("File not found: %s\n", filename);
 			sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
 			bytessent = send(client_fd, response, strlen(response), 0);
-		} else {
+		} else if (strcmp(reqPath, "/redirect") == 0) {
+		sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+	} else if (strcmp(reqPath, "/error") == 0) {
+		sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+	}  else {
 			printf("Opening file %s\n", filename);
 		}
 
@@ -150,8 +150,10 @@ void serve(int client_fd) {
 
 		// Send the response
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %ld\r\n\r\n%s", data_size, (char *) data);
-
-
+	} else if (strcmp(reqPath, "/redirect") == 0) {
+		sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+	} else if (strcmp(reqPath, "/error") == 0) {
+		sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
 	} else {
 		sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
 	}
@@ -178,13 +180,21 @@ int main() {
 			continue;
 		}
 		printf("Client connected\n");
-	
-		pthread_t thread;
-		if (pthread_create(&thread, NULL, (void *) serve, &client_fd) != 0) {
-			printf("Thread creation failed: %s \n", strerror(errno));
-			close(client_fd);
-			continue;
-		}
+		
+		pid_t pid = fork();
+        if (pid == -1) {
+            printf("Fork failed: %s\n", strerror(errno));
+            close(client_fd);
+            continue;
+        } else if (pid == 0) {
+            // Child process
+            close(server_fd);
+            serve(client_fd);
+            exit(0);
+        } else {
+            // Parent process
+            close(client_fd);
+        }
 	}
 	close(server_fd);
 
