@@ -75,7 +75,6 @@ int main() {
 	int client_fd = newServer.client_fd;
 
 	char readbuf[1024];
-	char path[512];
 	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);
 	if (bytesread < 0) {
 		printf("Receive failed: %s \n", strerror(errno));
@@ -89,9 +88,8 @@ int main() {
 	int bytessent;
 	char response[512];
 	int contentLength;
-	
 	if (strcmp(reqPath, "/") == 0) {
-		char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World";
+		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World");
 	 } 
 	if (strncmp(reqPath, "/echo/", 6) == 0) {
 		// parse the content from the request
