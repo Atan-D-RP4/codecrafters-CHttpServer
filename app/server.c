@@ -86,28 +86,31 @@ int main() {
 	char *reqPath = strtok(readbuf, " ");
 	reqPath = strtok(NULL, " ");
 
-	char *reqPathCopy = strdup(reqPath);
-	
-	char *mainPath = strtok(reqPathCopy, "/");
-	char *content = strtok(NULL, "");
-
 	int bytessent;
+	char response[512];
+	int contentLength;
 	
 	if (strcmp(reqPath, "/") == 0) {
 		char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World";
-		bytessent = send(client_fd, response, strlen(response), 0);
 	 } 
-	if (strcmp(reqPathCopy, "/echo") == 0) {
-		int contentLength = strlen(content);
-		char response[512];
-		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, content);
+	if (strncmp(reqPath, "/echo/", 6) == 0) {
+		// parse the content from the request
+		reqPath = strtok(reqPath, "/");
+		reqPath = strtok(NULL, "");
+		contentLength = strlen(reqPath);
+		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, reqPath);
 		printf("Sending Response: %s\n", response);
-		bytessent = send(client_fd, response, strlen(response), 0);
-	 } else {
+	} else if (strcmp(reqPath, "/user-agent") == 0) {
+		// parse the user-agent from the request
+		char *body = strtok(reqPath, " "); // body -> user-agent	
+		body = strtok(NULL, " "); // body -> curl/x.x.x
+		contentLength = strlen(body);								
+		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, body);
+	} else {
 		char *response = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
-		bytessent = send(client_fd, response, strlen(response), 0);
 	}
 
+	bytessent = send(client_fd, response, strlen(response), 0);
 	if (bytessent < 0) {
 		printf("Send failed: %s \n", strerror(errno));
 		return 1;
