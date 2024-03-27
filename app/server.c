@@ -67,6 +67,7 @@ void serve(int client_fd) {
 	printf("Method: %s\n", method);
 	printf("Path: %s\n", path);
 	printf("Content: %s\n", content);
+	printf("\n");
 
 	// Extract the path from the request
 	char *reqPath = path;
@@ -86,15 +87,16 @@ void serve(int client_fd) {
 		printf("Sending Response: %s\n", response);
 	} else if (strcmp(reqPath, "/user-agent") == 0) {
 		// parse the user-agent from the request
-		reqPath = strtok(NULL, "\r\n");
-		reqPath = strtok(NULL, "\r\n");
-		reqPath = strtok(NULL, "\r\n");
-
+		char *userAgent = strtok(readbuf, "\r\n");
+		userAgent = strtok(NULL, "\r\n");
+		userAgent = strtok(NULL, " ");
+		userAgent = strtok(NULL, " ");
+		userAgent = strtok(userAgent, "\r\n");
+		printf("User-Agent: %s\n", userAgent);
+	
 		// parse the body from the request
-		char *body = strtok(reqPath, " "); // body -> user-agent	
-		body = strtok(NULL, " "); // body -> curl/x.x.x
-		contentLength = strlen(body);								
-		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, body);
+		contentLength = strlen(userAgent);								
+		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent);
 	} else if (strncmp(reqPath, "/files/", 7) == 0) {
 		// parse the file path
 		reqPath = strtok(reqPath, "/");
