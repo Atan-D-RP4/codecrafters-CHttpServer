@@ -71,6 +71,7 @@ void serve(int client_fd) {
 	// Extract the path from the request
 	char *reqPath = strtok(readbuf, " ");
 	reqPath = strtok(NULL, " ");
+	printf("Path: %s\n", reqPath);
 
 	int bytessent;
 	char response[512];
@@ -96,7 +97,7 @@ void serve(int client_fd) {
 		body = strtok(NULL, " "); // body -> curl/x.x.x
 		contentLength = strlen(body);								
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, body);
-	} else if (strncmp(reqPath, "/files/", 7) == 0 && strcmp(method, "POST") == 0) {
+	} else if (strncmp(reqPath, "/files/", 7) == 0 /* && strcmp(method, "POST") == 0*/) {
 		method = strtok(NULL , "\r\n");
 		method = strtok(NULL , "\r\n");
 		method = strtok(NULL , "\r\n");
@@ -111,6 +112,7 @@ void serve(int client_fd) {
 		// parse the file path
 		char *filename = strtok(reqPath, "/");
 		filename = strtok(NULL, "");
+		printf("Filename: %s\n", filename);
 
 		FILE *fp = fopen(filename, "rb");
 		if (!fp) {
@@ -118,10 +120,10 @@ void serve(int client_fd) {
 			sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
 			bytessent = send(client_fd, response, strlen(response), 0);
 		} else if (strcmp(reqPath, "/redirect") == 0) {
-		sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
-	} else if (strcmp(reqPath, "/error") == 0) {
-		sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
-	}  else {
+			sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+		} else if (strcmp(reqPath, "/error") == 0) {
+			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+		}  else {
 			printf("Opening file %s\n", filename);
 		}
 
@@ -157,7 +159,8 @@ void serve(int client_fd) {
 	} else {
 		sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
 	}
-
+	
+	printf("Sending Response: %s\n", response);
 	bytessent = send(client_fd, response, strlen(response), 0);
 	if (bytessent < 0) {
 		printf("Send failed: %s \n", strerror(errno));
