@@ -100,7 +100,7 @@ int main() {
 	if (strcmp(reqPathCopy, "/echo") == 0) {
 		int contentLength = strlen(content);
 		char response[512];
-		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain-text\r\nContent-Length: %d\r\n\r\n%s", contentLength, content);
+		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, content);
 		printf("Sending Response: %s\n", response);
 		bytessent = send(client_fd, response, strlen(response), 0);
 	 } else {
