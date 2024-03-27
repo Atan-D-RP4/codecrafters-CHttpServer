@@ -6,6 +6,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
 
 int simpleServer() {
 	// Disable output buffering
@@ -61,6 +62,12 @@ void serve(int client_fd) {
 		return;
 	}
 
+	char *method = strdup(readbuf);
+	char *content = strdup(readbuf);
+	printf("Content: %s\n", content);
+	method = strtok(method, " ");
+	printf("Method: %s\n", method);
+
 	// Extract the path from the request
 	char *reqPath = strtok(readbuf, " ");
 	reqPath = strtok(NULL, " ");
@@ -89,6 +96,62 @@ void serve(int client_fd) {
 		body = strtok(NULL, " "); // body -> curl/x.x.x
 		contentLength = strlen(body);								
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, body);
+	} else if (strcmp(reqPath, "/redirect") == 0) {
+		sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+	} else if (strcmp(reqPath, "/error") == 0) {
+		sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+	} else if (strncmp(reqPath, "/files/", 7) == 0 && strcmp(method, "POST") == 0) {
+		method = strtok(NULL , "\r\n");
+		method = strtok(NULL , "\r\n");
+		method = strtok(NULL , "\r\n");
+		method = strtok(NULL , "\r\n");
+		method = strtok(NULL , "\r\n");
+
+		char *contentLengthStr = strtok(method, " ");
+		contentLengthStr = strtok(NULL, " ");
+
+		int contentLength = atoi(contentLengthStr);
+
+		// parse the file path
+		char *filename = strtok(reqPath, "/");
+		filename = strtok(NULL, "");
+
+		FILE *fp = fopen(filename, "rb");
+		if (!fp) {
+			printf("File not found: %s\n", filename);
+			sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
+			bytessent = send(client_fd, response, strlen(response), 0);
+		} else {
+			printf("Opening file %s\n", filename);
+		}
+
+		if (fseek(fp, 0, SEEK_END) < 0) {
+			printf("Seek failed: %s\n", strerror(errno));
+			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+		}
+		
+		// Get the size of the file
+		size_t data_size = ftell(fp);
+
+		// Reset the file pointer to the beginning of the file
+		rewind(fp);
+
+		// Allocate memory to store the file
+		void *data = malloc(data_size);
+
+		// Fill the data buffer 
+		if (fread(data, 1, data_size, fp) != data_size) {
+			printf("Read failed: %s\n", strerror(errno));
+			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+		}
+
+		// Close the file
+		fclose(fp);
+
+		// Send the response
+		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %ld\r\n\r\n%s", data_size, (char *) data);
+
+
 	} else {
 		sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
 	}
@@ -116,20 +179,12 @@ int main() {
 		}
 		printf("Client connected\n");
 	
-		pid_t pid = fork();
-        if (pid == -1) {
-            printf("Fork failed: %s\n", strerror(errno));
-            close(client_fd);
-            continue;
-        } else if (pid == 0) {
-            // Child process
-            close(server_fd);
-            serve(client_fd);
-            exit(0);
-        } else {
-            // Parent process
-            close(client_fd);
-        }
+		pthread_t thread;
+		if (pthread_create(&thread, NULL, (void *) serve, &client_fd) != 0) {
+			printf("Thread creation failed: %s \n", strerror(errno));
+			close(client_fd);
+			continue;
+		}
 	}
 	close(server_fd);
 
