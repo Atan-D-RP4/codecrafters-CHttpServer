@@ -96,7 +96,7 @@ int main() {
 	if (strcmp(reqPath, "/") == 0) {
 		char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World";
 		bytessent = send(client_fd, response, strlen(response), 0);
-	 } else if (strcmp(reqPath, "/echo")) {
+	 } else if (strcmp(reqPathCopy, "/echo")) {
 		int contentLength = strlen(content);
 		char response[512];
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: %d\r\n\r\n%s", contentLength, content);
