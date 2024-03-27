@@ -64,16 +64,12 @@ struct server simpleServer() {
 	return (struct server) { server_fd, client_fd };
 }
 
-int main() {
-	struct server newServer = simpleServer();
-	int server_fd = newServer.server_fd;
-	int client_fd = newServer.client_fd;
-
+void serve(int client_fd) {
 	char readbuf[1024];
 	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);
 	if (bytesread < 0) {
 		printf("Receive failed: %s \n", strerror(errno));
-		return 1;
+		exit(EXIT_FAILURE);
 	}
 
 	// Extract the path from the request
@@ -111,10 +107,21 @@ int main() {
 	bytessent = send(client_fd, response, strlen(response), 0);
 	if (bytessent < 0) {
 		printf("Send failed: %s \n", strerror(errno));
-		return 1;
+		exit(EXIT_FAILURE);
 	}
+}
 
-	close(server_fd);
+int main() {
+	struct server newServer = simpleServer();
+	int server_fd = newServer.server_fd;
+	int client_fd = newServer.client_fd;
+
+	if (!fork()) {
+		close(server_fd);
+		serve(client_fd);
+		close(client_fd);
+		exit(0);
+	}
 
 	return 0;
 }
