@@ -32,16 +32,20 @@ int main() {
 		return 1;
 	}
 	
-	struct sockaddr_in serv_addr = { .sin_family = AF_INET ,
-									 .sin_port = htons(4221),
-									 .sin_addr = { htonl(INADDR_ANY) },
-									};
-	
+	// Set up the server address struct
+	struct sockaddr_in serv_addr = { 
+		 .sin_family = AF_INET ,
+		 .sin_port = htons(4221),
+		 .sin_addr = { htonl(INADDR_ANY) },
+	};
+
+	// Bind server to port 4221
 	if (bind(server_fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) != 0) {
 		printf("Bind failed: %s \n", strerror(errno));
 		return 1;
 	}
 	
+	// Listen for incoming connections
 	int connection_backlog = 5;
 	if (listen(server_fd, connection_backlog) != 0) {
 		printf("Listen failed: %s \n", strerror(errno));
@@ -51,8 +55,10 @@ int main() {
 	printf("Waiting for a client to connect...\n");
 	client_addr_len = sizeof(client_addr);
 	
-	accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);	
 	printf("Client connected\n");
+
+	char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World";
 	
 	close(server_fd);
 
