@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <pthread.h>
 
+char *dir = "./";
+
 int simpleServer() {
 	// Disable output buffering
 	setbuf(stdout, NULL);
@@ -79,6 +81,7 @@ void serve(int client_fd) {
 	if (strcmp(reqPath, "/") == 0) {
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World");
 	 } else if (strncmp(reqPath, "/echo/", 6) == 0) {
+
 		// parse the content from the request
 		reqPath = strtok(reqPath, "/");
 		reqPath = strtok(NULL, "");
@@ -86,6 +89,7 @@ void serve(int client_fd) {
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, reqPath);
 		printf("Sending Response: %s\n", response);
 	} else if (strcmp(reqPath, "/user-agent") == 0) {
+
 		// parse the user-agent from the request
 		char *userAgent = strtok(readbuf, "\r\n");
 		userAgent = strtok(NULL, "\r\n");
@@ -98,6 +102,7 @@ void serve(int client_fd) {
 		contentLength = strlen(userAgent);								
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent);
 	} else if (strncmp(reqPath, "/files/", 7) == 0) {
+	
 		// parse the file path
 		reqPath = strtok(reqPath, "/");
 		printf("ReqPath: %s\n", reqPath);
@@ -105,8 +110,8 @@ void serve(int client_fd) {
 		printf("ReqPath: %s\n", reqPath);
 		
 		char filename[256];
-		sprintf(filename, "%s", reqPath);
-		printf("Filename: ../%s\n", filename);
+		sprintf(filename, "%s%s", dir, reqPath);
+		printf("Filename: %s\n", filename);
 
 		FILE *fp = fopen(filename, "rb");
 		if (!fp) {
@@ -162,7 +167,10 @@ void serve(int client_fd) {
 	}
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+	if (argc == 3) 
+		dir = argv[2];
+
 	int server_fd = simpleServer();
 	
 	int client_addr_len;
