@@ -151,6 +151,33 @@ void serve(int client_fd) {
 
 		// Send the response
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %ld\r\n\r\n%s", data_size, (char *) data);
+	} else if (strncmp(reqPath, "/files/", 7) == 0 && strcmp(method, "POST") == 0) {
+		
+		// parse the file path
+		reqPath = strtok(reqPath, "/");
+		printf("ReqPath: %s\n", reqPath);
+		reqPath = strtok(NULL, "/");
+		printf("ReqPath: %s\n", reqPath);
+	
+		char filename[256];
+		sprintf(filename, "%s%s", dir, reqPath);
+		printf("Filename: %s\n", filename);
+
+		FILE *fp = fopen(filename, "wb");
+		if (!fp) {
+			printf("Failed to open file: %s\n", filename);
+			sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
+			bytessent = send(client_fd, response, strlen(response), 0);
+		} else if (strcmp(reqPath, "/redirect") == 0) {
+			sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+		} else if (strcmp(reqPath, "/error") == 0) {
+			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+		}  else {
+			printf("Creating file %s\n", filename);
+		}
+
+
+
 	} else if (strcmp(reqPath, "/redirect") == 0) {
 		sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
 	} else if (strcmp(reqPath, "/error") == 0) {
