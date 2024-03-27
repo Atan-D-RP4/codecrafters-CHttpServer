@@ -97,21 +97,11 @@ void serve(int client_fd) {
 		body = strtok(NULL, " "); // body -> curl/x.x.x
 		contentLength = strlen(body);								
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, body);
-	} else if (strncmp(reqPath, "/files/", 7) == 0 /* && strcmp(method, "POST") == 0*/) {
-		method = strtok(NULL , "\r\n");
-		method = strtok(NULL , "\r\n");
-		method = strtok(NULL , "\r\n");
-		method = strtok(NULL , "\r\n");
-		method = strtok(NULL , "\r\n");
-
-		char *contentLengthStr = strtok(method, " ");
-		contentLengthStr = strtok(NULL, " ");
-
-		int contentLength = atoi(contentLengthStr);
-
+	} else if (strncmp(reqPath, "/files/", 7) == 0) {
 		// parse the file path
-		char *filename = strtok(reqPath, "/");
-		filename = strtok(NULL, "");
+		reqPath = strtok(reqPath, "/");
+		reqPath = strtok(NULL, "/");
+		char *filename = strtok(reqPath, " ");
 		printf("Filename: %s\n", filename);
 
 		FILE *fp = fopen(filename, "rb");
