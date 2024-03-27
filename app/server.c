@@ -117,7 +117,6 @@ int main() {
 	int client_fd = newServer.client_fd;
 
 	if (!fork()) {
-		close(server_fd);
 		serve(client_fd);
 		close(client_fd);
 		exit(0);
