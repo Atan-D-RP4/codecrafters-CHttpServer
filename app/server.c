@@ -55,23 +55,21 @@ int simpleServer() {
 }
 
 void serve(int client_fd) {
-	char readbuf[1024];
+	char readbuf[2048];
 	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);
 	if (bytesread < 0) {
 		printf("Receive failed: %s \n", strerror(errno));
 		return;
 	}
 
-	char *method = strdup(readbuf);
-	char *content = strdup(readbuf);
-	printf("Content: %s\n", content);
-	method = strtok(method, " ");
+	char method[16], content[1024], path[256];
+	sscanf(readbuf, "%s %s %[^\r]", method, path, content);
 	printf("Method: %s\n", method);
+	printf("Path: %s\n", path);
+	printf("Content: %s\n", content);
 
 	// Extract the path from the request
-	char *reqPath = strtok(readbuf, " ");
-	reqPath = strtok(NULL, " ");
-	printf("Path: %s\n", reqPath);
+	char *reqPath = path;
 
 	int bytessent;
 	char response[512];
@@ -100,12 +98,12 @@ void serve(int client_fd) {
 	} else if (strncmp(reqPath, "/files/", 7) == 0) {
 		// parse the file path
 		reqPath = strtok(reqPath, "/");
+		printf("ReqPath: %s\n", reqPath);
 		reqPath = strtok(NULL, "/");
-		char *filename = strtok(reqPath, " ");
-
-		char *pathHeader = "/tmp/data/codecrafters.io/http-server-tester/";
-		strcat(pathHeader, filename);
-
+		printf("ReqPath: %s\n", reqPath);
+		
+		char filename[256];
+		sprintf(filename, "%s", reqPath);
 		printf("Filename: %s\n", filename);
 
 		FILE *fp = fopen(filename, "rb");
