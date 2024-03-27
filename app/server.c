@@ -60,6 +60,12 @@ int main() {
 
 	char *response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World";
 	
+	int bytessent = send(client_fd, response, strlen(response), 0);
+	if (bytessent < 0) {
+		printf("Send failed: %s \n", strerror(errno));
+		return 1;
+	}
+
 	close(server_fd);
 
 	return 0;
