@@ -106,7 +106,7 @@ void serve(int client_fd) {
 		
 		char filename[256];
 		sprintf(filename, "%s", reqPath);
-		printf("Filename: %s\n", filename);
+		printf("Filename: ../%s\n", filename);
 
 		FILE *fp = fopen(filename, "rb");
 		if (!fp) {
