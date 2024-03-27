@@ -64,11 +64,11 @@ void serve(int client_fd) {
 		return;
 	}
 
-	char method[16], content[1024], path[256];
-	sscanf(readbuf, "%s %s %[^\r]", method, path, content);
+	char method[16], reqtype[16], path[256];
+	sscanf(readbuf, "%s %s %[^\r]", method, path, reqtype);
 	printf("Method: %s\n", method);
 	printf("Path: %s\n", path);
-	printf("Content: %s\n", content);
+	printf("Request Type: %s\n", reqtype);
 	printf("\n");
 
 	// Extract the path from the request
@@ -101,7 +101,7 @@ void serve(int client_fd) {
 		// parse the body from the request
 		contentLength = strlen(userAgent);								
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent);
-	} else if (strncmp(reqPath, "/files/", 7) == 0) {
+	} else if (strncmp(reqPath, "/files/", 7) == 0 && strcmp(method, "GET") == 0) {
 	
 		// parse the file path
 		reqPath = strtok(reqPath, "/");
@@ -172,11 +172,33 @@ void serve(int client_fd) {
 			sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
 		} else if (strcmp(reqPath, "/error") == 0) {
 			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
-		}  else {
+		} else {
 			printf("Creating file %s\n", filename);
 		}
 
+		char *parser = strtok(readbuf, "\r\n");
+		while (parser != NULL && strcmp(parser, "") != 0) {
+			parser = strtok(NULL, "\r\n");
+		}
+		parser = strtok(NULL, "\r\n");
+		char *contentLengthStr = strtok(parser, " ");
+		contentLengthStr = strtok(NULL, " ");
+		int contentLength = atoi(contentLengthStr);
 
+		printf("Content Length: %d\n", contentLength);
+
+		parser = strtok(NULL, "\r\n");
+		parser = strtok(NULL, "\r\n");
+
+		char content[contentLength + 1];
+		strncpy(content, parser, contentLength);
+		content[contentLength] = '\0';
+		printf("Content to Write: %s\n", content);
+
+		fwrite(content, sizeof(char), contentLength, fp);
+		fclose(fp);
+
+		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 0\r\n\r\n");
 
 	} else if (strcmp(reqPath, "/redirect") == 0) {
 		sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
