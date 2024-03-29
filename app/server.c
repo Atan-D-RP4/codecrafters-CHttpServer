@@ -1,3 +1,5 @@
+#define NOB_IMPLEMENTATION
+#include "nob.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -176,26 +178,33 @@ void serve(int client_fd) {
 			printf("Creating file %s\n", filename);
 		}
 
-		char *parser = strtok(readbuf, "\r\n");
-		while (parser != NULL && strcmp(parser, "") != 0) {
-			parser = strtok(NULL, "\r\n");
+		printf("Received: %s\n\n", readbuf);
+		// char *parser = strtok(readbuf, "\r\n");
+
+		
+		Nob_String_View buf = {
+			.data = readbuf,
+			.count = bytesread
+		};
+		nob_log(NOB_INFO, "Size of Message: %zu\n", buf.count);
+
+		// The tokenizer
+		Nob_String_View content = { 
+			.data = buf.data,
+			.count = buf.count
+		};
+		Nob_String_View token  = nob_sv_chop_by_delim(&content, '\n');
+		for (size_t i = 0; i < 100 && content.count > 0; ++i) {
+			content = nob_sv_trim_left(content);
+			token  = nob_sv_chop_by_delim(&content, '\n');
+			nob_log(NOB_INFO, "  "SV_Fmt, SV_Arg(token));
 		}
-		parser = strtok(NULL, "\r\n");
-		char *contentLengthStr = strtok(parser, " ");
-		contentLengthStr = strtok(NULL, " ");
-		int contentLength = atoi(contentLengthStr);
+		
 
-		printf("Content Length: %d\n", contentLength);
+		printf("Content Length: %lu\n", token.count);
+		printf("Content to Write: %s\n", token.data);
 
-		parser = strtok(NULL, "\r\n");
-		parser = strtok(NULL, "\r\n");
-
-		char content[contentLength + 1];
-		strncpy(content, parser, contentLength);
-		content[contentLength] = '\0';
-		printf("Content to Write: %s\n", content);
-
-		fwrite(content, sizeof(char), contentLength, fp);
+		fwrite(token.data, sizeof(char), token.count, fp);
 		fclose(fp);
 
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 0\r\n\r\n");
