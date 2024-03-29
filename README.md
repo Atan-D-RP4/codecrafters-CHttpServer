@@ -1,3 +1,6 @@
+```
+IT IS FUCKING DONE. NOB FOR THE WIN.
+```
 [![progress-banner](https://backend.codecrafters.io/progress/http-server/f9e65bd0-0fc2-4e7b-b0a0-df0dd12bddcc)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
 This is a starting point for C solutions to the
