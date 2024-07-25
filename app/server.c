@@ -1,5 +1,3 @@
-#define NOB_IMPLEMENTATION
-#include "nob.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -10,6 +8,9 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#define NOB_IMPLEMENTATION
+#include "nob.h"
+
 char *dir = "./";
 
 int simpleServer() {
@@ -18,9 +19,9 @@ int simpleServer() {
 
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
-	
+
 	int server_fd;
-	
+
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd == -1) {
 		printf("Socket creation failed: %s...\n", strerror(errno));
@@ -34,12 +35,12 @@ int simpleServer() {
 		printf("SO_REUSEPORT failed: %s \n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	
+
 	// Set up the server address struct
-	struct sockaddr_in serv_addr = { 
-		 .sin_family = AF_INET ,
-		 .sin_port = htons(4221),
-		 .sin_addr = { htonl(INADDR_ANY) },
+	struct sockaddr_in serv_addr = {
+		.sin_family = AF_INET ,
+		.sin_port = htons(4221),
+		.sin_addr = { htonl(INADDR_ANY) },
 	};
 
 	// Bind server to port 4221
@@ -47,7 +48,7 @@ int simpleServer() {
 		printf("Bind failed: %s \n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
-	
+
 	// Listen for incoming connections
 	int connection_backlog = 5;
 	if (listen(server_fd, connection_backlog) != 0) {
@@ -66,11 +67,25 @@ void serve(int client_fd) {
 		return;
 	}
 
+	fprintf(stdout, "Received:\n%s\n", readbuf);
+
 	char method[16], reqtype[16], path[256];
 	sscanf(readbuf, "%s %s %[^\r]", method, path, reqtype);
 	printf("Method: %s\n", method);
 	printf("Path: %s\n", path);
 	printf("Request Type: %s\n", reqtype);
+
+	char host[128], userAgent[128], accept[8], encoding[64];
+	sscanf(readbuf, "%*s %*s %*s\r\nHost: %s\r\nUser-Agent: %s\r\nAccept: %s\r\n", host, userAgent, accept);
+	printf("Host: %s\n", host);
+	printf("User-Agent: %s\n", userAgent);
+	printf("Accept: %s\n", accept);
+	if (strstr(readbuf, "Accept-Encoding: ") != NULL) {
+		sscanf(readbuf, "%*s %*s %*s\r\nHost: %*s\r\nUser-Agent: %*s\r\nAccept: %*s\r\nAccept-Encoding: %s\r\n", encoding);
+		printf("Accept-Encoding: %s\n", encoding);
+	} else {
+		strcpy(encoding, "");
+	}
 	printf("\n");
 
 	// Extract the path from the request
@@ -82,35 +97,34 @@ void serve(int client_fd) {
 
 	if (strcmp(reqPath, "/") == 0) {
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World");
-	 } else if (strncmp(reqPath, "/echo/", 6) == 0) {
+	} else if (strncmp(reqPath, "/echo/", 6) == 0) {
 
 		// parse the content from the request
 		reqPath = strtok(reqPath, "/");
 		reqPath = strtok(NULL, "");
 		contentLength = strlen(reqPath);
-		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, reqPath);
-		printf("Sending Response: %s\n", response);
+		if (strcmp(encoding, "gzip") == 0) {
+			printf("Encoding: %s\n", encoding);
+			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", encoding, contentLength, reqPath);
+		} else {
+			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, reqPath);
+		}
 	} else if (strcmp(reqPath, "/user-agent") == 0) {
 
 		// parse the user-agent from the request
-		char *userAgent = strtok(readbuf, "\r\n");
-		userAgent = strtok(NULL, "\r\n");
-		userAgent = strtok(NULL, " ");
-		userAgent = strtok(NULL, " ");
-		userAgent = strtok(userAgent, "\r\n");
 		printf("User-Agent: %s\n", userAgent);
-	
+
 		// parse the body from the request
-		contentLength = strlen(userAgent);								
+		contentLength = strlen(userAgent);
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent);
 	} else if (strncmp(reqPath, "/files/", 7) == 0 && strcmp(method, "GET") == 0) {
-	
+
 		// parse the file path
 		reqPath = strtok(reqPath, "/");
 		printf("ReqPath: %s\n", reqPath);
 		reqPath = strtok(NULL, "/");
 		printf("ReqPath: %s\n", reqPath);
-		
+
 		char filename[256];
 		sprintf(filename, "%s%s", dir, reqPath);
 		printf("Filename: %s\n", filename);
@@ -132,7 +146,7 @@ void serve(int client_fd) {
 			printf("Seek failed: %s\n", strerror(errno));
 			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
 		}
-		
+
 		// Get the size of the file
 		size_t data_size = ftell(fp);
 
@@ -142,7 +156,7 @@ void serve(int client_fd) {
 		// Allocate memory to store the file
 		void *data = malloc(data_size);
 
-		// Fill the data buffer 
+		// Fill the data buffer
 		if (fread(data, 1, data_size, fp) != data_size) {
 			printf("Read failed: %s\n", strerror(errno));
 			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
@@ -154,13 +168,13 @@ void serve(int client_fd) {
 		// Send the response
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %ld\r\n\r\n%s", data_size, (char *) data);
 	} else if (strncmp(reqPath, "/files/", 7) == 0 && strcmp(method, "POST") == 0) {
-		
+
 		// parse the file path
 		reqPath = strtok(reqPath, "/");
 		printf("ReqPath: %s\n", reqPath);
 		reqPath = strtok(NULL, "/");
 		printf("ReqPath: %s\n", reqPath);
-	
+
 		char filename[256];
 		sprintf(filename, "%s%s", dir, reqPath);
 		printf("Filename: %s\n", filename);
@@ -181,7 +195,7 @@ void serve(int client_fd) {
 		printf("Received: %s\n\n", readbuf);
 		// char *parser = strtok(readbuf, "\r\n");
 
-		
+
 		Nob_String_View buf = {
 			.data = readbuf,
 			.count = bytesread
@@ -189,7 +203,7 @@ void serve(int client_fd) {
 		nob_log(NOB_INFO, "Size of Message: %zu\n", buf.count);
 
 		// The tokenizer
-		Nob_String_View content = { 
+		Nob_String_View content = {
 			.data = buf.data,
 			.count = buf.count
 		};
@@ -199,7 +213,7 @@ void serve(int client_fd) {
 			token  = nob_sv_chop_by_delim(&content, '\n');
 			nob_log(NOB_INFO, "  "SV_Fmt, SV_Arg(token));
 		}
-		
+
 
 		printf("Content Length: %lu\n", token.count);
 		printf("Content to Write: %s\n", token.data);
@@ -216,7 +230,7 @@ void serve(int client_fd) {
 	} else {
 		sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
 	}
-	
+
 	printf("Sending Response: %s\n", response);
 	bytessent = send(client_fd, response, strlen(response), 0);
 	if (bytessent < 0) {
@@ -226,38 +240,38 @@ void serve(int client_fd) {
 }
 
 int main(int argc, char *argv[]) {
-	if (argc == 3) 
+	if (argc == 3)
 		dir = argv[2];
 
 	int server_fd = simpleServer();
-	
+
 	int client_addr_len;
 	struct sockaddr_in client_addr;
-	
+
 	while(1) {
 		printf("Waiting for a client to connect...\n");
 		client_addr_len = sizeof(client_addr);
-		int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);	
+		int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);
 		if (client_fd < 0) {
 			printf("Accept failed: %s \n", strerror(errno));
 			continue;
 		}
 		printf("Client connected\n");
-		
+
 		pid_t pid = fork();
-        if (pid == -1) {
-            printf("Fork failed: %s\n", strerror(errno));
-            close(client_fd);
-            continue;
-        } else if (pid == 0) {
-            // Child process
-            close(server_fd);
-            serve(client_fd);
-            exit(0);
-        } else {
-            // Parent process
-            close(client_fd);
-        }
+		if (pid == -1) {
+			printf("Fork failed: %s\n", strerror(errno));
+			close(client_fd);
+			continue;
+		} else if (pid == 0) {
+			// Child process
+			close(server_fd);
+			serve(client_fd);
+			exit(0);
+		} else {
+			// Parent process
+			close(client_fd);
+		}
 	}
 	close(server_fd);
 
