@@ -259,7 +259,7 @@ void serve(int client_fd) {
 	} else if (strcmp(reqPath, "/error") == 0) {
 		sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
 	} else {
-		sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
+		sprintf(response, "HTTP/1.1 404 Not Found\r\n\r\n");
 	}
 
 	printf("Sending Response: \n%s\n", response);
