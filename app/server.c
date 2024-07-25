@@ -163,19 +163,19 @@ void serve(int client_fd) {
 		FILE *fp = fopen(filename, "rb");
 		if (!fp) {
 			printf("File not found: %s\n", filename);
-			sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
+			sprintf(response, "HTTP/1.1 404 Not Found\r\n\r\n");
 			bytessent = send(client_fd, response, strlen(response), 0);
 		} else if (strcmp(reqPath, "/redirect") == 0) {
 			sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
 		} else if (strcmp(reqPath, "/error") == 0) {
-			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+			sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
 		}  else {
 			printf("Opening file %s\n", filename);
 		}
 
 		if (fseek(fp, 0, SEEK_END) < 0) {
 			printf("Seek failed: %s\n", strerror(errno));
-			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+			sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
 		}
 
 		// Get the size of the file
@@ -190,7 +190,7 @@ void serve(int client_fd) {
 		// Fill the data buffer
 		if (fread(data, 1, data_size, fp) != data_size) {
 			printf("Read failed: %s\n", strerror(errno));
-			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+			sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
 		}
 
 		// Close the file
