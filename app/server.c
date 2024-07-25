@@ -252,7 +252,7 @@ void serve(int client_fd) {
 		fwrite(token.data, sizeof(char), token.count, fp);
 		fclose(fp);
 
-		sprintf(response, "HTTP/1.1 201 OK\r\nContent-Type: text/plain\r\nContent-Length: 0\r\n\r\n");
+		sprintf(response, "HTTP/1.1 201 Created\r\nContent-Type: text/plain\r\nContent-Length: 0\r\n\r\n");
 
 	} else if (strcmp(reqPath, "/redirect") == 0) {
 		sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
