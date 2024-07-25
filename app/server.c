@@ -67,25 +67,51 @@ void serve(int client_fd) {
 		return;
 	}
 
-	fprintf(stdout, "Received:\n%s\n", readbuf);
-
 	char method[16], reqtype[16], path[256];
 	sscanf(readbuf, "%s %s %[^\r]", method, path, reqtype);
 	printf("Method: %s\n", method);
 	printf("Path: %s\n", path);
 	printf("Request Type: %s\n", reqtype);
 
+	fprintf(stdout, "Received:\n%s\n", readbuf);
+
+	// Headers
 	char host[128], userAgent[128], accept[8], encoding[64];
-	sscanf(readbuf, "%*s %*s %*s\r\nHost: %s\r\nUser-Agent: %s\r\nAccept: %s\r\n", host, userAgent, accept);
+	char *headers = strtok(readbuf, "\r\n");
+	headers = strtok(NULL, "\r\n");
+
+	if (headers != NULL && strncmp(headers, "Host: ", 6) == 0) {
+		sscanf(headers, "Host: %s", host);
+		headers = strtok(NULL, "\r\n");
+	} else {
+		strcpy(host, "localhost");
+	}
+
+	if (headers != NULL && strncmp(headers, "User-Agent: ", 12) == 0) {
+		sscanf(headers, "User-Agent: %s", userAgent);
+		headers = strtok(NULL, "\r\n");
+	} else {
+		strcpy(userAgent, "curl/7.68.0");
+	}
+
+	if (headers != NULL && strncmp(headers, "Accept: ", 8) == 0) {
+		sscanf(headers, "Accept: %s", accept);
+		headers = strtok(NULL, "\r\n");
+	} else {
+		strcpy(accept, "*/*");
+	}
+
+	if (headers != NULL && strncmp(headers, "Accept-Encoding: ", 17) == 0) {
+		sscanf(headers, "Accept-Encoding: %s", encoding);
+	} else {
+		strcpy(encoding, "identity");
+	}
+
 	printf("Host: %s\n", host);
 	printf("User-Agent: %s\n", userAgent);
 	printf("Accept: %s\n", accept);
-	if (strstr(readbuf, "Accept-Encoding: ") != NULL) {
-		sscanf(readbuf, "%*s %*s %*s\r\nHost: %*s\r\nUser-Agent: %*s\r\nAccept: %*s\r\nAccept-Encoding: %s\r\n", encoding);
-		printf("Accept-Encoding: %s\n", encoding);
-	} else {
-		strcpy(encoding, "");
-	}
+	printf("Accept-Encoding: %s\n", encoding);
+
 	printf("\n");
 
 	// Extract the path from the request
@@ -112,6 +138,11 @@ void serve(int client_fd) {
 	} else if (strcmp(reqPath, "/user-agent") == 0) {
 
 		// parse the user-agent from the request
+		//	char *userAgent = strtok(readbuf, "\r\n");
+		//	userAgent = strtok(NULL, "\r\n");
+		//	userAgent = strtok(NULL, " ");
+		//	userAgent = strtok(NULL, " ");
+		//	userAgent = strtok(userAgent, "\r\n");
 		printf("User-Agent: %s\n", userAgent);
 
 		// parse the body from the request
@@ -231,7 +262,7 @@ void serve(int client_fd) {
 		sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
 	}
 
-	printf("Sending Response: %s\n", response);
+	printf("Sending Response: \n%s\n", response);
 	bytessent = send(client_fd, response, strlen(response), 0);
 	if (bytessent < 0) {
 		printf("Send failed: %s \n", strerror(errno));
