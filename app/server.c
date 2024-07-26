@@ -8,12 +8,32 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <zlib.h>
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
 char *dir = "./";
 
+char* gzip(char* str, size_t len) {
+	// Compress the string
+	size_t outlen = compressBound(len);
+	char *out = malloc(outlen);
+	if (out == NULL) {
+		printf("Failed to allocate memory for compressed data\n");
+		return NULL;
+	}
+
+	if (compress((Bytef *) out, &outlen, (Bytef *) str, len) != Z_OK) {
+		printf("Failed to compress data\n");
+		free(out);
+		return NULL;
+	}
+
+	return out;
+}
+
+// This function sets up a simple server that listens on port 4221
 int simpleServer() {
 	// Disable output buffering
 	setbuf(stdout, NULL);
@@ -107,7 +127,9 @@ void serve(int client_fd) {
 	}
 
 	printf("Parsed Headers:\n");
-	printf("Head: %s %s %s\n", method, path, reqtype);
+	printf("Method: %s\n", method);
+	printf("Path: %s\n", path);
+	printf("Request Type: %s\n", reqtype);
 	printf("Host: %s\n", host);
 	printf("User-Agent: %s\n", userAgent);
 	printf("Accept: %s\n", accept);
@@ -153,16 +175,23 @@ void serve(int client_fd) {
 		// parse the content from the request
 		reqPath = strtok(reqPath, "/");
 		reqPath = strtok(NULL, "");
-		contentLength = strlen(reqPath);
-		printf("Encoding: %s\n", useEncoding);
+		char *content = reqPath;
+		contentLength = strlen(content);
+
 		if (strlen(useEncoding) > 0) {
-			printf("Valid Encoding: %s\n", useEncoding);
+			if (strcmp(useEncoding, "gzip") == 0) {
+				printf("Compressing content\n");
+				char *compressed = gzip(content, contentLength);
+				contentLength = strlen(compressed);
+				content = compressed;
+			}
 			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-					useEncoding, contentLength, reqPath);
+					useEncoding, contentLength, content);
 		} else {
 			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-					contentLength, reqPath);
+					contentLength, content);
 		}
+
 	} else if (strcmp(reqPath, "/user-agent") == 0) {
 
 		// parse the user-agent from the request
