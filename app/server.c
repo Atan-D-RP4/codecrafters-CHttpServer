@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -67,16 +68,13 @@ void serve(int client_fd) {
 		return;
 	}
 
-	char method[16], reqtype[16], path[256];
-	sscanf(readbuf, "%s %s %[^\r]", method, path, reqtype);
-	printf("Method: %s\n", method);
-	printf("Path: %s\n", path);
-	printf("Request Type: %s\n", reqtype);
-
 	fprintf(stdout, "Received:\n%s\n", readbuf);
 
+	char method[16], reqtype[16], path[256];
+	sscanf(readbuf, "%s %s %[^\r]", method, path, reqtype);
+
 	// Headers
-	char host[128], userAgent[128], accept[8], encoding[64];
+	char host[128], userAgent[128], accept[8];
 	char *headers = strtok(readbuf, "\r\n");
 	headers = strtok(NULL, "\r\n");
 
@@ -101,16 +99,43 @@ void serve(int client_fd) {
 		strcpy(accept, "*/*");
 	}
 
+	char encoding[128];
 	if (headers != NULL && strncmp(headers, "Accept-Encoding: ", 17) == 0) {
-		sscanf(headers, "Accept-Encoding: %s", encoding);
+		sscanf(headers, "Accept-Encoding: %[^\r]", encoding);
 	} else {
 		strcpy(encoding, "identity");
 	}
 
+	printf("Parsed Headers:\n");
+	printf("Head: %s %s %s\n", method, path, reqtype);
 	printf("Host: %s\n", host);
 	printf("User-Agent: %s\n", userAgent);
 	printf("Accept: %s\n", accept);
 	printf("Accept-Encoding: %s\n", encoding);
+
+	char validEncodings[3][8] = {"gzip", "deflate", "identity"};
+	char useEncoding[16] = { 0 };
+	char* en_tok = strtok(encoding, ",");
+	while (en_tok != NULL) {
+		// Remove leading whitespace
+		while (*en_tok == ' ') {
+			en_tok++;
+		}
+		// Remove trailing whitespace
+		char *end = en_tok + strlen(en_tok) - 1;
+		while (end > en_tok && *end == ' ') {
+			*end-- = '\0';
+		}
+
+		printf("Encoding Token: %s\n", en_tok);
+		for (int i = 0; i < 3; i++) {
+			if (strcmp(en_tok, validEncodings[i]) == 0) {
+				strcpy(useEncoding, en_tok);
+				break;
+			}
+		}
+		en_tok = strtok(NULL, ",");
+	}
 
 	printf("\n");
 
@@ -129,11 +154,14 @@ void serve(int client_fd) {
 		reqPath = strtok(reqPath, "/");
 		reqPath = strtok(NULL, "");
 		contentLength = strlen(reqPath);
-		if (strcmp(encoding, "gzip") == 0) {
-			printf("Encoding: %s\n", encoding);
-			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", encoding, contentLength, reqPath);
+		printf("Encoding: %s\n", useEncoding);
+		if (strlen(useEncoding) > 0) {
+			printf("Valid Encoding: %s\n", useEncoding);
+			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+					useEncoding, contentLength, reqPath);
 		} else {
-			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, reqPath);
+			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+					contentLength, reqPath);
 		}
 	} else if (strcmp(reqPath, "/user-agent") == 0) {
 
