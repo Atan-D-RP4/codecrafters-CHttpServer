@@ -228,35 +228,53 @@ void serve(int client_fd) {
 	int contentLength;
 
 	if (strcmp(reqPath, "/") == 0) {
+
 		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World");
+
 	} else if (strncmp(reqPath, "/echo/", 6) == 0) {
 
 		// parse the content from the request
 		reqPath = strtok(reqPath, "/");
 		reqPath = strtok(NULL, "");
+
 		char *content = reqPath;
 		contentLength = strlen(content);
 
-		if (strlen(useEncoding) > 0) {
-			if (strcmp(useEncoding, "gzip") == 0) {
-				char *compressed = NULL;
-				size_t compressedLength = 0;
-				if (gzip(content, contentLength, (unsigned char **)&compressed, &compressedLength) != Z_OK) {
-					printf("Failed to compress content\n");
-					strcpy(useEncoding, "identity");
-				} else {
-					content = compressed;
-					contentLength = compressedLength;
-					fprintf(stdout, "Content Length: %d\n", contentLength);
-					fprintf(stdout, "Content: %s\n", content);
-				}
+		char *compressed = NULL;
+		size_t compressedLength = 0;
+
+		if (strlen(useEncoding) > 0  && strcmp(useEncoding, "gzip") == 0) {
+			if (gzip(content, contentLength, (unsigned char **)&compressed, &compressedLength) != Z_OK) {
+				printf("Failed to compress content\n");
+				strcpy(useEncoding, "identity");
+			} else {
+				content = compressed;
+				contentLength = compressedLength;
+				fprintf(stdout, "Compressed Content: %d\n", contentLength);
+				fprintf(stdout, "Compressed Content:\n%s\n", content);
 			}
+		}
+
+		if (strlen(useEncoding) > 0) {
 			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
 					useEncoding, contentLength, content);
 		} else {
 			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
 					contentLength, content);
 		}
+		fprintf(stdout, "Response:\n%s\n", response);
+		bytessent = send(client_fd, response, strlen(response), 0);
+		if (bytessent < 0) {
+			printf("Send failed: %s\n", strerror(errno));
+			if (compressed) free(compressed);
+			return;
+		}
+		bytessent = send(client_fd, content, contentLength, 0);
+		if (bytessent < 0) {
+			printf("Send failed: %s\n", strerror(errno));
+		}
+		if (compressed) free(compressed);
+		return;
 
 	} else if (strcmp(reqPath, "/user-agent") == 0) {
 
