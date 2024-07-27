@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <zconf.h>
 #include <zlib.h>
 
 #define NOB_IMPLEMENTATION
@@ -34,24 +35,25 @@ char* hexdump(char* data, size_t len) {
 char* gzip(char* str, size_t len) {
 	printf("Compressing content\n");
 	// Compress the string
-	size_t outlen = compressBound(len);
-	char *out = malloc(outlen);
-	if (out == NULL) {
-		printf("Failed to allocate memory for compressed data\n");
-		return NULL;
-	}
+	size_t output_size = 128 + len;
+	unsigned char *output = malloc(output_size);
 
-	int err = compress((Bytef*) out, &outlen, (Bytef*) str, len);
-	if (err != Z_OK) {
-		printf("Compression failed: %d\n", err);
-		free(out);
-		return NULL;
-	}
-	printf("Original size: %lu\n", len);
-	printf("Compressed size: %lu\n", outlen);
-	printf("Compressed content: %s\n", out);
+  z_stream z = {
+	  .zalloc = Z_NULL,
+	  .zfree = Z_NULL,
+	  .opaque = Z_NULL,
+	  .avail_in = len,
+	  .next_in = (Bytef *) str,
+	  .avail_out = output_size,
+	  .next_out = (Bytef *) output
+  };
 
-	return out;
+	deflateInit2(&z, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16, 8,
+			   Z_DEFAULT_STRATEGY);
+	deflate(&z, Z_FINISH);
+	deflateEnd(&z);
+
+	return (char *) output;
 }
 
 // This function sets up a simple server that listens on port 4221
