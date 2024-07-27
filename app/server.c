@@ -15,7 +15,24 @@
 
 char *dir = "./";
 
+char* hexdump(char* data, size_t len) {
+	printf("Hexdumping content\n");
+	char *out = malloc(len * 2 + 1);
+	if (out == NULL) {
+		printf("Failed to allocate memory for hexdump\n");
+		return NULL;
+	}
+
+	for (size_t i = 0; i < len; i++) {
+		sprintf(out + i * 2, "%02x", data[i]);
+	}
+
+	free(data);
+	return out;
+}
+
 char* gzip(char* str, size_t len) {
+	printf("Compressing content\n");
 	// Compress the string
 	size_t outlen = compressBound(len);
 	char *out = malloc(outlen);
@@ -24,11 +41,15 @@ char* gzip(char* str, size_t len) {
 		return NULL;
 	}
 
-	if (compress((Bytef *) out, &outlen, (Bytef *) str, len) != Z_OK) {
-		printf("Failed to compress data\n");
+	int err = compress((Bytef*) out, &outlen, (Bytef*) str, len);
+	if (err != Z_OK) {
+		printf("Compression failed: %d\n", err);
 		free(out);
 		return NULL;
 	}
+	printf("Original size: %lu\n", len);
+	printf("Compressed size: %lu\n", outlen);
+	printf("Compressed content: %s\n", out);
 
 	return out;
 }
@@ -180,10 +201,14 @@ void serve(int client_fd) {
 
 		if (strlen(useEncoding) > 0) {
 			if (strcmp(useEncoding, "gzip") == 0) {
-				printf("Compressing content\n");
 				char *compressed = gzip(content, contentLength);
-				contentLength = strlen(compressed);
-				content = compressed;
+				if (compressed == NULL) {
+					printf("Failed to compress content\n");
+					strcpy(useEncoding, "identity");
+				} else {
+					contentLength = strlen(compressed);
+					content = compressed;
+				}
 			}
 			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
 					useEncoding, contentLength, content);
