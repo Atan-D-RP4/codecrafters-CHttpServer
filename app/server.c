@@ -8,7 +8,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <zconf.h>
 #include <zlib.h>
 
 #define NOB_IMPLEMENTATION
@@ -17,43 +16,77 @@
 char *dir = "./";
 
 char* hexdump(char* data, size_t len) {
-	printf("Hexdumping content\n");
-	char *out = malloc(len * 2 + 1);
-	if (out == NULL) {
-		printf("Failed to allocate memory for hexdump\n");
-		return NULL;
-	}
 
-	for (size_t i = 0; i < len; i++) {
-		sprintf(out + i * 2, "%02x", data[i]);
-	}
+    size_t hex_str_len = len * 3 + 1;
+    char *hex_str = malloc(hex_str_len);
 
-	free(data);
-	return out;
+    if (hex_str == NULL) {
+        return NULL;
+    }
+
+    size_t pos = 0;
+    for (size_t i = 0; i < len; ++i) {
+        pos += snprintf(hex_str + pos, hex_str_len - pos, "%02X ", data[i]);
+        if ((i + 1) % 8 == 0 && i + 1 < len) {
+            snprintf(hex_str + pos, hex_str_len - pos, "\n");
+            pos++;
+        }
+    }
+
+    return hex_str;
 }
 
-char* gzip(char* str, size_t len) {
-	printf("Compressing content\n");
-	// Compress the string
-	size_t output_size = 128 + len;
-	unsigned char *output = malloc(output_size);
+int gzip(const char *input, size_t input_len, unsigned char **output, size_t *output_len) {
+    // Estimate the maximum compressed length and allocate memory
+    size_t max_compressed_len = compressBound(input_len);
+    *output = malloc(max_compressed_len);
 
-  z_stream z = {
-	  .zalloc = Z_NULL,
-	  .zfree = Z_NULL,
-	  .opaque = Z_NULL,
-	  .avail_in = len,
-	  .next_in = (Bytef *) str,
-	  .avail_out = output_size,
-	  .next_out = (Bytef *) output
-  };
+	z_stream zs = {
+		.zalloc = Z_NULL,
+		.zfree = Z_NULL,
+		.opaque = Z_NULL,
+		.avail_in = input_len,
+		.next_in = (unsigned char *)input,
+		.avail_out = max_compressed_len,
+		.next_out = *output,
+	};
 
-	deflateInit2(&z, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16, 8,
-			   Z_DEFAULT_STRATEGY);
-	deflate(&z, Z_FINISH);
-	deflateEnd(&z);
 
-	return (char *) output;
+	// Initialize the compression stream
+	int ret = deflateInit2(&zs, Z_BEST_COMPRESSION, Z_DEFLATED, 15 | 16, 8, Z_DEFAULT_STRATEGY);
+
+	if (ret != Z_OK) {
+		return ret;
+	}
+
+	printf("Input Data: %s\n", input);
+	// Perform the compression
+	ret = deflate(&zs, Z_FINISH);
+
+	while (ret == Z_OK) {
+		// If the output buffer is full, reallocate memory
+		if (zs.avail_out == 0) {
+			*output = realloc(*output, max_compressed_len * 2);
+			zs.avail_out = max_compressed_len;
+			zs.next_out = *output + zs.total_out;
+			max_compressed_len *= 2;
+		}
+
+		// Continue compressing
+		ret = deflate(&zs, Z_FINISH);
+	}
+
+	// Finalize the compression
+	ret = deflateEnd(&zs);
+
+	if (ret != Z_OK) {
+		return ret;
+	}
+
+	// Set the output length
+	*output_len = zs.total_out;
+
+	return Z_OK;
 }
 
 // This function sets up a simple server that listens on port 4221
@@ -203,12 +236,11 @@ void serve(int client_fd) {
 
 		if (strlen(useEncoding) > 0) {
 			if (strcmp(useEncoding, "gzip") == 0) {
-				char *compressed = gzip(content, contentLength);
-				if (compressed == NULL) {
+				char *compressed = NULL;
+				if (gzip(content, contentLength, (unsigned char **)&compressed, (size_t *)&contentLength) != Z_OK) {
 					printf("Failed to compress content\n");
 					strcpy(useEncoding, "identity");
 				} else {
-					contentLength = strlen(compressed);
 					content = compressed;
 				}
 			}
