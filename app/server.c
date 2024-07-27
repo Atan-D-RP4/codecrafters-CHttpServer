@@ -17,7 +17,7 @@ char *dir = "./";
 
 char* hexdump(char* data, size_t len) {
 
-    size_t hex_str_len = len * 3 + 1;
+    size_t hex_str_len = len * 4;
     char *hex_str = malloc(hex_str_len);
 
     if (hex_str == NULL) {
@@ -32,6 +32,9 @@ char* hexdump(char* data, size_t len) {
             pos++;
         }
     }
+
+	fprintf(stdout, "Hexdump Len: %zu\n", strlen(hex_str));
+	fprintf(stdout, "Hexdump:\n%s\n", hex_str);
 
     return hex_str;
 }
@@ -237,11 +240,15 @@ void serve(int client_fd) {
 		if (strlen(useEncoding) > 0) {
 			if (strcmp(useEncoding, "gzip") == 0) {
 				char *compressed = NULL;
-				if (gzip(content, contentLength, (unsigned char **)&compressed, (size_t *)&contentLength) != Z_OK) {
+				size_t compressedLength = 0;
+				if (gzip(content, contentLength, (unsigned char **)&compressed, &compressedLength) != Z_OK) {
 					printf("Failed to compress content\n");
 					strcpy(useEncoding, "identity");
 				} else {
 					content = compressed;
+					contentLength = compressedLength;
+					fprintf(stdout, "Content Length: %d\n", contentLength);
+					fprintf(stdout, "Content: %s\n", content);
 				}
 			}
 			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
