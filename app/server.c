@@ -15,6 +15,17 @@
 
 char *dir = "./";
 
+typedef struct {
+	char method[16];
+	char path[256];
+	char reqtype[16];
+
+	char host[128];
+	char userAgent[128];
+	char accept[8];
+	char encoding[256];
+} Header;
+
 char* hexdump(char* data, size_t len) {
 
     size_t hex_str_len = len * 4;
@@ -139,6 +150,41 @@ int simpleServer() {
 	return server_fd;
 }
 
+Header* parseHeaders(char* readbuf, int bytesread) {
+	Header* header = calloc(1, sizeof(Header));
+	if (header == NULL) {
+		return NULL;
+	}
+
+	char *pos = readbuf;
+	sscanf(pos, "%s %s %[^\r]", header->method, header->path, header->reqtype);
+	pos = strtok(pos, "\r\n");
+
+	while (pos != NULL) {
+		if (strncmp(pos, "Host: ", 6) == 0) {
+			sscanf(pos, "Host: %s", header->host);
+		} else if (strncmp(pos, "User-Agent: ", 12) == 0) {
+			sscanf(pos, "User-Agent: %s", header->userAgent);
+		} else if (strncmp(pos, "Accept: ", 8) == 0) {
+			sscanf(pos, "Accept: %s", header->accept);
+		} else if (strncmp(pos, "Accept-Encoding: ", 17) == 0) {
+			sscanf(pos, "Accept-Encoding: %s", header->encoding);
+		}
+		pos = strtok(NULL, "\r\n");
+	}
+
+	fprintf(stdout, "Parsed Headers:\n");
+	fprintf(stdout, "Method: %s\n", header->method);
+	fprintf(stdout, "Path: %s\n", header->path);
+	fprintf(stdout, "Request Type: %s\n", header->reqtype);
+	fprintf(stdout, "Host: %s\n", header->host);
+	fprintf(stdout, "User-Agent: %s\n", header->userAgent);
+	fprintf(stdout, "Accept: %s\n", header->accept);
+	fprintf(stdout, "Accept-Encoding: %s\n", header->encoding);
+
+	return header;
+}
+
 void serve(int client_fd) {
 	char readbuf[2048];
 	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);
@@ -149,50 +195,15 @@ void serve(int client_fd) {
 
 	fprintf(stdout, "Received:\n%s\n", readbuf);
 
-	char method[16], reqtype[16], path[256];
-	sscanf(readbuf, "%s %s %[^\r]", method, path, reqtype);
 
-	// Headers
-	char host[128], userAgent[128], accept[8];
-	char *headers = strtok(readbuf, "\r\n");
-	headers = strtok(NULL, "\r\n");
-
-	if (headers != NULL && strncmp(headers, "Host: ", 6) == 0) {
-		sscanf(headers, "Host: %s", host);
-		headers = strtok(NULL, "\r\n");
-	} else {
-		strcpy(host, "localhost");
-	}
-
-	if (headers != NULL && strncmp(headers, "User-Agent: ", 12) == 0) {
-		sscanf(headers, "User-Agent: %s", userAgent);
-		headers = strtok(NULL, "\r\n");
-	} else {
-		strcpy(userAgent, "curl/7.68.0");
-	}
-
-	if (headers != NULL && strncmp(headers, "Accept: ", 8) == 0) {
-		sscanf(headers, "Accept: %s", accept);
-		headers = strtok(NULL, "\r\n");
-	} else {
-		strcpy(accept, "*/*");
-	}
-
-	char encoding[128];
-	if (headers != NULL && strncmp(headers, "Accept-Encoding: ", 17) == 0) {
-		sscanf(headers, "Accept-Encoding: %[^\r]", encoding);
-	} else {
-		strcpy(encoding, "identity");
-	}
-
-	printf("Parsed Headers:\n");
-	printf("Method: %s\n", method);
-	printf("Path: %s\n", path);
-	printf("Request Type: %s\n", reqtype);
-	printf("Host: %s\n", host);
-	printf("User-Agent: %s\n", userAgent);
-	printf("Accept: %s\n", accept);
-	printf("Accept-Encoding: %s\n", encoding);
+	Header* header = parseHeaders(readbuf, bytesread);
+	char *method = header->method;
+	char *path = header->path;
+	char *reqtype = header->reqtype;
+	char *host = header->host;
+	char *userAgent = header->userAgent;
+	char *accept = header->accept;
+	char *encoding = header->encoding;
 
 	char validEncodings[3][8] = {"gzip", "deflate", "identity"};
 	char useEncoding[16] = { 0 };
@@ -411,6 +422,33 @@ void serve(int client_fd) {
 	}
 }
 
+void plug_update(int server_fd, struct sockaddr_in client_addr, int client_addr_len) {
+
+	printf("Waiting for a client to connect...\n");
+	client_addr_len = sizeof(client_addr);
+	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);
+	if (client_fd < 0) {
+		printf("Accept failed: %s \n", strerror(errno));
+		return;
+	}
+	printf("Client connected\n");
+
+	pid_t pid = fork();
+	if (pid == -1) {
+		printf("Fork failed: %s\n", strerror(errno));
+		close(client_fd);
+		return;
+	} else if (pid == 0) {
+		// Child process
+		close(server_fd);
+		serve(client_fd);
+		exit(0);
+	} else {
+		// Parent process
+		close(client_fd);
+	}
+}
+
 int main(int argc, char *argv[]) {
 	if (argc == 3)
 		dir = argv[2];
@@ -421,29 +459,7 @@ int main(int argc, char *argv[]) {
 	struct sockaddr_in client_addr;
 
 	while(1) {
-		printf("Waiting for a client to connect...\n");
-		client_addr_len = sizeof(client_addr);
-		int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);
-		if (client_fd < 0) {
-			printf("Accept failed: %s \n", strerror(errno));
-			continue;
-		}
-		printf("Client connected\n");
-
-		pid_t pid = fork();
-		if (pid == -1) {
-			printf("Fork failed: %s\n", strerror(errno));
-			close(client_fd);
-			continue;
-		} else if (pid == 0) {
-			// Child process
-			close(server_fd);
-			serve(client_fd);
-			exit(0);
-		} else {
-			// Parent process
-			close(client_fd);
-		}
+		plug_update(server_fd, client_addr, client_addr_len);
 	}
 	close(server_fd);
 
