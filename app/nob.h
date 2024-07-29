@@ -984,7 +984,7 @@ defer:
     if (f) fclose(f);
     return result;
 }
-	
+
 Nob_String_View nob_sv_chop_by_space(Nob_String_View *sv)
 {
 	size_t i = 0;

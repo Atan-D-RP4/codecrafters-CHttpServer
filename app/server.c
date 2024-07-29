@@ -1,20 +1,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <zlib.h>
-
-#define NOB_IMPLEMENTATION
-#include "nob.h"
-
-char *dir = "./";
-
 typedef struct {
 	char method[16];
 	char path[256];
@@ -26,34 +12,55 @@ typedef struct {
 	char encoding[256];
 } Header;
 
+
+char* hexdump(char* data, size_t len);
+int gzip(const char *input, size_t input_len, unsigned char **output, size_t *output_len);
+int simpleServer();
+Header* parseHeaders(char* readbuf, int bytesread);
+void serve(int client_fd);
+void server_loop(int server_fd);
+
+#ifdef SERVER_IMPLEMENTATION
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <zlib.h>
+
+
+#define NOB_IMPLEMENTATION
+#include "nob.h"
 char* hexdump(char* data, size_t len) {
 
-    size_t hex_str_len = len * 4;
-    char *hex_str = malloc(hex_str_len);
+	size_t hex_str_len = len * 4;
+	char *hex_str = malloc(hex_str_len);
 
-    if (hex_str == NULL) {
-        return NULL;
-    }
+	if (hex_str == NULL) {
+		return NULL;
+	}
 
-    size_t pos = 0;
-    for (size_t i = 0; i < len; ++i) {
-        pos += snprintf(hex_str + pos, hex_str_len - pos, "%02X ", data[i]);
-        if ((i + 1) % 8 == 0 && i + 1 < len) {
-            snprintf(hex_str + pos, hex_str_len - pos, "\n");
-            pos++;
-        }
-    }
+	size_t pos = 0;
+	for (size_t i = 0; i < len; ++i) {
+		pos += snprintf(hex_str + pos, hex_str_len - pos, "%02X ", data[i]);
+		if ((i + 1) % 8 == 0 && i + 1 < len) {
+			snprintf(hex_str + pos, hex_str_len - pos, "\n");
+			pos++;
+		}
+	}
 
 	fprintf(stdout, "Hexdump Len: %zu\n", strlen(hex_str));
 	fprintf(stdout, "Hexdump:\n%s\n", hex_str);
 
-    return hex_str;
+	return hex_str;
 }
 
 int gzip(const char *input, size_t input_len, unsigned char **output, size_t *output_len) {
-    // Estimate the maximum compressed length and allocate memory
-    size_t max_compressed_len = compressBound(input_len);
-    *output = malloc(max_compressed_len);
+	// Estimate the maximum compressed length and allocate memory
+	size_t max_compressed_len = compressBound(input_len);
+	*output = malloc(max_compressed_len);
 
 	z_stream zs = {
 		.zalloc = Z_NULL,
@@ -157,10 +164,11 @@ Header* parseHeaders(char* readbuf, int bytesread) {
 	}
 
 	char *pos = readbuf;
+	char *end = readbuf + bytesread;
 	sscanf(pos, "%s %s %[^\r]", header->method, header->path, header->reqtype);
 	pos = strtok(pos, "\r\n");
 
-	while (pos != NULL) {
+	while (pos != NULL && pos < end) {
 		if (strncmp(pos, "Host: ", 6) == 0) {
 			sscanf(pos, "Host: %s", header->host);
 		} else if (strncmp(pos, "User-Agent: ", 12) == 0) {
@@ -186,6 +194,7 @@ Header* parseHeaders(char* readbuf, int bytesread) {
 }
 
 void serve(int client_fd) {
+	char* dir = "./";
 	char readbuf[2048];
 	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);
 	if (bytesread < 0) {
@@ -197,14 +206,8 @@ void serve(int client_fd) {
 
 
 	Header* header = parseHeaders(readbuf, bytesread);
-	char *method = header->method;
-	char *path = header->path;
-	char *reqtype = header->reqtype;
-	char *host = header->host;
-	char *userAgent = header->userAgent;
-	char *accept = header->accept;
-	char *encoding = header->encoding;
 
+	char *encoding = header->encoding;
 	char validEncodings[3][8] = {"gzip", "deflate", "identity"};
 	char useEncoding[16] = { 0 };
 	char* en_tok = strtok(encoding, ",");
@@ -232,7 +235,8 @@ void serve(int client_fd) {
 	printf("\n");
 
 	// Extract the path from the request
-	char *reqPath = path;
+	char *method = header->method;
+	char *reqPath = header->path;
 
 	int bytessent;
 	char response[512];
@@ -289,12 +293,7 @@ void serve(int client_fd) {
 
 	} else if (strcmp(reqPath, "/user-agent") == 0) {
 
-		// parse the user-agent from the request
-		//	char *userAgent = strtok(readbuf, "\r\n");
-		//	userAgent = strtok(NULL, "\r\n");
-		//	userAgent = strtok(NULL, " ");
-		//	userAgent = strtok(NULL, " ");
-		//	userAgent = strtok(userAgent, "\r\n");
+		char *userAgent = header->userAgent;
 		printf("User-Agent: %s\n", userAgent);
 
 		// parse the body from the request
@@ -422,8 +421,9 @@ void serve(int client_fd) {
 	}
 }
 
-void plug_update(int server_fd, struct sockaddr_in client_addr, int client_addr_len) {
-
+void server_loop(int server_fd) {
+	int client_addr_len;
+	struct sockaddr_in client_addr;
 	printf("Waiting for a client to connect...\n");
 	client_addr_len = sizeof(client_addr);
 	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);
@@ -449,19 +449,4 @@ void plug_update(int server_fd, struct sockaddr_in client_addr, int client_addr_
 	}
 }
 
-int main(int argc, char *argv[]) {
-	if (argc == 3)
-		dir = argv[2];
-
-	int server_fd = simpleServer();
-
-	int client_addr_len;
-	struct sockaddr_in client_addr;
-
-	while(1) {
-		plug_update(server_fd, client_addr, client_addr_len);
-	}
-	close(server_fd);
-
-	return 0;
-}
+#endif // SERVER_IMPL
