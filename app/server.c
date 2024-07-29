@@ -1,26 +1,3 @@
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-typedef struct {
-	char method[16];
-	char path[256];
-	char reqtype[16];
-
-	char host[128];
-	char userAgent[128];
-	char accept[8];
-	char encoding[256];
-} Header;
-
-
-char* hexdump(char* data, size_t len);
-int gzip(const char *input, size_t input_len, unsigned char **output, size_t *output_len);
-int simpleServer();
-Header* parseHeaders(char* readbuf, int bytesread);
-void serve(int client_fd);
-void server_loop(int server_fd);
-
-#ifdef SERVER_IMPLEMENTATION
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -30,6 +7,7 @@ void server_loop(int server_fd);
 #include <pthread.h>
 #include <zlib.h>
 
+#include "server.h"
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
@@ -176,36 +154,10 @@ Header* parseHeaders(char* readbuf, int bytesread) {
 		} else if (strncmp(pos, "Accept: ", 8) == 0) {
 			sscanf(pos, "Accept: %s", header->accept);
 		} else if (strncmp(pos, "Accept-Encoding: ", 17) == 0) {
-			sscanf(pos, "Accept-Encoding: %s", header->encoding);
+			sscanf(pos, "Accept-Encoding: %[^\r]", header->encoding);
 		}
 		pos = strtok(NULL, "\r\n");
 	}
-
-	fprintf(stdout, "Parsed Headers:\n");
-	fprintf(stdout, "Method: %s\n", header->method);
-	fprintf(stdout, "Path: %s\n", header->path);
-	fprintf(stdout, "Request Type: %s\n", header->reqtype);
-	fprintf(stdout, "Host: %s\n", header->host);
-	fprintf(stdout, "User-Agent: %s\n", header->userAgent);
-	fprintf(stdout, "Accept: %s\n", header->accept);
-	fprintf(stdout, "Accept-Encoding: %s\n", header->encoding);
-
-	return header;
-}
-
-void serve(int client_fd) {
-	char* dir = "./";
-	char readbuf[2048];
-	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);
-	if (bytesread < 0) {
-		printf("Receive failed: %s \n", strerror(errno));
-		return;
-	}
-
-	fprintf(stdout, "Received:\n%s\n", readbuf);
-
-
-	Header* header = parseHeaders(readbuf, bytesread);
 
 	char *encoding = header->encoding;
 	char validEncodings[3][8] = {"gzip", "deflate", "identity"};
@@ -222,8 +174,7 @@ void serve(int client_fd) {
 			*end-- = '\0';
 		}
 
-		printf("Encoding Token: %s\n", en_tok);
-		for (int i = 0; i < 3; i++) {
+		for (size_t i = 0; i < NOB_ARRAY_LEN(validEncodings); ++i) {
 			if (strcmp(en_tok, validEncodings[i]) == 0) {
 				strcpy(useEncoding, en_tok);
 				break;
@@ -231,186 +182,265 @@ void serve(int client_fd) {
 		}
 		en_tok = strtok(NULL, ",");
 	}
+	strcpy(header->useEncoding, useEncoding);
 
-	printf("\n");
+	return header;
+}
+
+RESPONSE_TYPE getResponseType(char* path, char* method) {
+	RESPONSE_TYPE type = NOT_FOUND;
+
+	if (strcmp(path, "/") == 0) {
+		type = INDEX;
+		fprintf(stdout, "Requesting Index\n");
+	} else if (strncmp(path, "/echo/", 6) == 0 && strcmp(method, "GET") == 0) {
+		type = ECHO;
+		fprintf(stdout, "Requesting To Echo\n");
+	} else if (strncmp(path, "/user-agent", 11) == 0) {
+		type = USER_AGENT;
+		fprintf(stdout, "Requesting User-Agent\n");
+	} else if (strncmp(path, "/files/", 7) == 0 && strcmp(method, "GET") == 0) {
+		type = GET_FILE;
+		fprintf(stdout, "Requesting File\n");
+	} else if (strncmp(path, "/files/", 7) == 0 && strcmp(method, "POST") == 0) {
+		type = POST_FILE;
+		fprintf(stdout, "Posting File\n");
+	} else if (strcmp(path, "/redirect") == 0) {
+		type = REDIRECT;
+		fprintf(stdout, "Redirecting\n");
+	} else if (strcmp(path, "/error") == 0) {
+		type = ERROR;
+		fprintf(stdout, "Error\n");
+	}
+	printf("Response Type: %d\n", type);
+	if (type == NOT_FOUND) {
+		fprintf(stdout, "Not Found\n");
+	}
+	return type;
+}
+
+void serve(int client_fd) {
+	char* dir = "./";
+	char readbuf[2048];
+
+	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);
+	if (bytesread < 0) {
+		printf("Receive failed: %s \n", strerror(errno));
+		return;
+	}
+
+	Header* header = parseHeaders(readbuf, bytesread);
+
+	fprintf(stdout, "Received:\n%s\n", readbuf);
+	fprintf(stdout, "Parsed Headers:\n");
+	fprintf(stdout, "Method: %s\n", header->method);
+	fprintf(stdout, "Path: %s\n", header->path);
+	fprintf(stdout, "Request Type: %s\n", header->reqtype);
+	fprintf(stdout, "Host: %s\n", header->host);
+	fprintf(stdout, "User-Agent: %s\n", header->userAgent);
+	fprintf(stdout, "Accept: %s\n", header->accept);
+	fprintf(stdout, "Accept Encoding: %s\n", header->useEncoding);
 
 	// Extract the path from the request
 	char *method = header->method;
 	char *reqPath = header->path;
 
+	RESPONSE_TYPE type = getResponseType(reqPath, method);
+
 	int bytessent;
 	char response[512];
 	int contentLength;
 
-	if (strcmp(reqPath, "/") == 0) {
+	switch(type) {
+		case INDEX: {
+			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World");
+		} break;
 
-		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World");
+		case ECHO: {
 
-	} else if (strncmp(reqPath, "/echo/", 6) == 0) {
+			// parse the content from the request
+			reqPath = strtok(reqPath, "/");
+			reqPath = strtok(NULL, "");
 
-		// parse the content from the request
-		reqPath = strtok(reqPath, "/");
-		reqPath = strtok(NULL, "");
+			char *content = reqPath;
+			contentLength = strlen(content);
 
-		char *content = reqPath;
-		contentLength = strlen(content);
+			char *compressed = NULL;
+			size_t compressedLength = 0;
 
-		char *compressed = NULL;
-		size_t compressedLength = 0;
+			char* useEncoding = header->useEncoding;
 
-		if (strlen(useEncoding) > 0  && strcmp(useEncoding, "gzip") == 0) {
-			if (gzip(content, contentLength, (unsigned char **)&compressed, &compressedLength) != Z_OK) {
-				printf("Failed to compress content\n");
-				strcpy(useEncoding, "identity");
-			} else {
-				content = compressed;
-				contentLength = compressedLength;
-				fprintf(stdout, "Compressed Content: %d\n", contentLength);
-				fprintf(stdout, "Compressed Content:\n%s\n", content);
+			if (strlen(useEncoding) > 0  && strcmp(useEncoding, "gzip") == 0) {
+			   if (gzip(content, contentLength, (unsigned char **)&compressed, &compressedLength) != Z_OK) {
+				   printf("Failed to compress content\n");
+				   strcpy(useEncoding, "identity");
+			   } else {
+				   content = compressed;
+				   contentLength = compressedLength;
+				   fprintf(stdout, "Compressed Content: %d\n", contentLength);
+				   fprintf(stdout, "Compressed Content:\n%s\n", content);
+			   }
 			}
-		}
 
-		if (strlen(useEncoding) > 0) {
-			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-					useEncoding, contentLength, content);
-		} else {
-			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-					contentLength, content);
-		}
-		fprintf(stdout, "Response:\n%s\n", response);
-		bytessent = send(client_fd, response, strlen(response), 0);
-		if (bytessent < 0) {
-			printf("Send failed: %s\n", strerror(errno));
+			if (strlen(useEncoding) > 0) {
+			   sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+					   useEncoding, contentLength, content);
+			} else {
+			   sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+					   contentLength, content);
+			}
+			fprintf(stdout, "Response:\n%s\n", response);
+
+			bytessent = send(client_fd, response, strlen(response), 0);
+			if (bytessent < 0) {
+			   printf("Send failed: %s\n", strerror(errno));
+			   if (compressed) free(compressed);
+			   return;
+			}
+			bytessent = send(client_fd, content, contentLength, 0);
+			if (bytessent < 0) {
+			   printf("Send failed: %s\n", strerror(errno));
+			}
 			if (compressed) free(compressed);
 			return;
-		}
-		bytessent = send(client_fd, content, contentLength, 0);
-		if (bytessent < 0) {
-			printf("Send failed: %s\n", strerror(errno));
-		}
-		if (compressed) free(compressed);
-		return;
 
-	} else if (strcmp(reqPath, "/user-agent") == 0) {
+		} break;
 
-		char *userAgent = header->userAgent;
-		printf("User-Agent: %s\n", userAgent);
+		case USER_AGENT: {
 
-		// parse the body from the request
-		contentLength = strlen(userAgent);
-		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent);
-	} else if (strncmp(reqPath, "/files/", 7) == 0 && strcmp(method, "GET") == 0) {
+			 char *userAgent = header->userAgent;
+			 printf("User-Agent: %s\n", userAgent);
 
-		// parse the file path
-		reqPath = strtok(reqPath, "/");
-		printf("ReqPath: %s\n", reqPath);
-		reqPath = strtok(NULL, "/");
-		printf("ReqPath: %s\n", reqPath);
+			 // parse the body from the request
+			 contentLength = strlen(userAgent);
+			 sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent);
 
-		char filename[256];
-		sprintf(filename, "%s%s", dir, reqPath);
-		printf("Filename: %s\n", filename);
+		} break;
 
-		FILE *fp = fopen(filename, "rb");
-		if (!fp) {
-			printf("File not found: %s\n", filename);
+		case GET_FILE: {
+
+			// parse the file path
+			reqPath = strtok(reqPath, "/");
+			printf("ReqPath: %s\n", reqPath);
+			reqPath = strtok(NULL, "/");
+			printf("ReqPath: %s\n", reqPath);
+
+			char filename[256];
+			sprintf(filename, "%s%s", dir, reqPath);
+			printf("Filename: %s\n", filename);
+
+			FILE *fp = fopen(filename, "rb");
+			if (!fp) {
+			    printf("File not found: %s\n", filename);
+			    sprintf(response, "HTTP/1.1 404 Not Found\r\n\r\n");
+			    bytessent = send(client_fd, response, strlen(response), 0);
+			} else if (strcmp(reqPath, "/redirect") == 0) {
+			    sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+			} else if (strcmp(reqPath, "/error") == 0) {
+			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
+			}  else {
+			    printf("Opening file %s\n", filename);
+			}
+
+			if (fseek(fp, 0, SEEK_END) < 0) {
+			    printf("Seek failed: %s\n", strerror(errno));
+			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
+			}
+
+			// Get the size of the file
+			size_t data_size = ftell(fp);
+
+			// Reset the file pointer to the beginning of the file
+			rewind(fp);
+
+			// Allocate memory to store the file
+			void *data = malloc(data_size);
+
+			// Fill the data buffer
+			if (fread(data, 1, data_size, fp) != data_size) {
+			    printf("Read failed: %s\n", strerror(errno));
+			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
+			}
+
+			// Close the file
+			fclose(fp);
+
+			// Send the response
+			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %ld\r\n\r\n%s", data_size, (char *) data);
+
+		} break;
+
+		case POST_FILE: {
+
+			// parse the file path
+			reqPath = strtok(reqPath, "/");
+			printf("ReqPath: %s\n", reqPath);
+			reqPath = strtok(NULL, "/");
+			printf("ReqPath: %s\n", reqPath);
+
+			char filename[256];
+			sprintf(filename, "%s%s", dir, reqPath);
+			printf("Filename: %s\n", filename);
+
+			FILE *fp = fopen(filename, "wb");
+			if (!fp) {
+				printf("Failed to open file: %s\n", filename);
+				sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
+				bytessent = send(client_fd, response, strlen(response), 0);
+			} else if (strcmp(reqPath, "/redirect") == 0) {
+				sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+			} else if (strcmp(reqPath, "/error") == 0) {
+				sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+			} else {
+				printf("Creating file %s\n", filename);
+			}
+
+			printf("Received: %s\n\n", readbuf);
+			// char *parser = strtok(readbuf, "\r\n");
+
+
+			Nob_String_View buf = {
+				.data = readbuf,
+				.count = bytesread
+			};
+			nob_log(NOB_INFO, "Size of Message: %zu\n", buf.count);
+
+			// The tokenizer
+			Nob_String_View content = {
+				.data = buf.data,
+				.count = buf.count
+			};
+			Nob_String_View token  = nob_sv_chop_by_delim(&content, '\n');
+			for (size_t i = 0; i < 100 && content.count > 0; ++i) {
+				content = nob_sv_trim_left(content);
+				token  = nob_sv_chop_by_delim(&content, '\n');
+				nob_log(NOB_INFO, "  "SV_Fmt, SV_Arg(token));
+			}
+
+
+			printf("Content Length: %lu\n", token.count);
+			printf("Content to Write: %s\n", token.data);
+
+			fwrite(token.data, sizeof(char), token.count, fp);
+			fclose(fp);
+
+			sprintf(response, "HTTP/1.1 201 Created\r\nContent-Type: text/plain\r\nContent-Length: 0\r\n\r\n");
+
+		} break;
+
+		case REDIRECT: {
+			sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+		} break;
+
+		case ERROR: {
+			sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
+		} break;
+
+		case NOT_FOUND: {
 			sprintf(response, "HTTP/1.1 404 Not Found\r\n\r\n");
-			bytessent = send(client_fd, response, strlen(response), 0);
-		} else if (strcmp(reqPath, "/redirect") == 0) {
-			sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
-		} else if (strcmp(reqPath, "/error") == 0) {
-			sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
-		}  else {
-			printf("Opening file %s\n", filename);
-		}
+		} break;
 
-		if (fseek(fp, 0, SEEK_END) < 0) {
-			printf("Seek failed: %s\n", strerror(errno));
-			sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
-		}
-
-		// Get the size of the file
-		size_t data_size = ftell(fp);
-
-		// Reset the file pointer to the beginning of the file
-		rewind(fp);
-
-		// Allocate memory to store the file
-		void *data = malloc(data_size);
-
-		// Fill the data buffer
-		if (fread(data, 1, data_size, fp) != data_size) {
-			printf("Read failed: %s\n", strerror(errno));
-			sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
-		}
-
-		// Close the file
-		fclose(fp);
-
-		// Send the response
-		sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %ld\r\n\r\n%s", data_size, (char *) data);
-	} else if (strncmp(reqPath, "/files/", 7) == 0 && strcmp(method, "POST") == 0) {
-
-		// parse the file path
-		reqPath = strtok(reqPath, "/");
-		printf("ReqPath: %s\n", reqPath);
-		reqPath = strtok(NULL, "/");
-		printf("ReqPath: %s\n", reqPath);
-
-		char filename[256];
-		sprintf(filename, "%s%s", dir, reqPath);
-		printf("Filename: %s\n", filename);
-
-		FILE *fp = fopen(filename, "wb");
-		if (!fp) {
-			printf("Failed to open file: %s\n", filename);
-			sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
-			bytessent = send(client_fd, response, strlen(response), 0);
-		} else if (strcmp(reqPath, "/redirect") == 0) {
-			sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
-		} else if (strcmp(reqPath, "/error") == 0) {
-			sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
-		} else {
-			printf("Creating file %s\n", filename);
-		}
-
-		printf("Received: %s\n\n", readbuf);
-		// char *parser = strtok(readbuf, "\r\n");
-
-
-		Nob_String_View buf = {
-			.data = readbuf,
-			.count = bytesread
-		};
-		nob_log(NOB_INFO, "Size of Message: %zu\n", buf.count);
-
-		// The tokenizer
-		Nob_String_View content = {
-			.data = buf.data,
-			.count = buf.count
-		};
-		Nob_String_View token  = nob_sv_chop_by_delim(&content, '\n');
-		for (size_t i = 0; i < 100 && content.count > 0; ++i) {
-			content = nob_sv_trim_left(content);
-			token  = nob_sv_chop_by_delim(&content, '\n');
-			nob_log(NOB_INFO, "  "SV_Fmt, SV_Arg(token));
-		}
-
-
-		printf("Content Length: %lu\n", token.count);
-		printf("Content to Write: %s\n", token.data);
-
-		fwrite(token.data, sizeof(char), token.count, fp);
-		fclose(fp);
-
-		sprintf(response, "HTTP/1.1 201 Created\r\nContent-Type: text/plain\r\nContent-Length: 0\r\n\r\n");
-
-	} else if (strcmp(reqPath, "/redirect") == 0) {
-		sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
-	} else if (strcmp(reqPath, "/error") == 0) {
-		sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
-	} else {
-		sprintf(response, "HTTP/1.1 404 Not Found\r\n\r\n");
+		default: return;
 	}
 
 	printf("Sending Response: \n%s\n", response);
@@ -419,6 +449,7 @@ void serve(int client_fd) {
 		printf("Send failed: %s \n", strerror(errno));
 		return;
 	}
+	free(header);
 }
 
 void server_loop(int server_fd) {
@@ -448,5 +479,3 @@ void server_loop(int server_fd) {
 		close(client_fd);
 	}
 }
-
-#endif // SERVER_IMPL

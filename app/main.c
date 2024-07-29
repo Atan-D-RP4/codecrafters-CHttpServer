@@ -8,8 +8,9 @@
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
-#include "server.c"
+#include "server.h"
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 char *dir = "./";
 void* reload_plug(void* arg);
 
@@ -21,6 +22,8 @@ typedef struct {
 void* reload_plug(void* arg) {
 	size_t loaded = 0;
 	while (1) {
+		fprintf(stdout, "Type 'reload' to reload the plug\n");
+		fprintf(stdout, "Do not press 'Ctrl+D'\n");
 		if (arg != NULL) {
 			fprintf(stdout, "Invalid argument\n");
 			return NULL;
@@ -29,12 +32,17 @@ void* reload_plug(void* arg) {
 		char read[32];
 		fscanf(stdin, "%s", read);
 		if (strncmp(read, keyword, strlen(keyword)) == 0) {
+			pthread_mutex_lock(&mutex);
 			void *state = plug_pre_load();
 			if(!reload_libplug()) {
 				fprintf(stdout, "Failed to reload libplug\n");
 				return NULL;
 			}
 			plug_post_load(state);
+			pthread_mutex_unlock(&mutex);
+		} else {
+			fprintf(stdout, "Invalid command\n");
+			continue;
 		}
 		loaded++;
 		printf("Reloaded %ld times\n", loaded);
@@ -53,6 +61,7 @@ void* app(void* arg) {
 		return NULL;
 	}
 
+
 	plug_init();
 	Plug *state = plug_pre_load();
 	state->dir = dir;
@@ -62,7 +71,9 @@ void* app(void* arg) {
 	}
 	plug_post_load(state);
 	while(1) {
+		pthread_mutex_lock(&mutex);
 		plug_update();
+		pthread_mutex_unlock(&mutex);
 	}
 	plug_free();
 }
@@ -73,8 +84,8 @@ int main(int argc, char **argv) {
 		dir = argv[2];
 
 	pthread_t inp_thread, app_thread;
-	pthread_create(&inp_thread, NULL, reload_plug, NULL);
 	pthread_create(&app_thread, NULL, app, NULL);
+	pthread_create(&inp_thread, NULL, reload_plug, NULL);
 
 	pthread_join(inp_thread, NULL);
 	pthread_join(app_thread, NULL);

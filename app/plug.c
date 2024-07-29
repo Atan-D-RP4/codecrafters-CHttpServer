@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "plug.h"
 
@@ -10,7 +11,7 @@
 	#undef SERVER_IMPLEMENTATION
 #endif
 
-#include "server.c"
+#include "server.h"
 
 typedef struct {
 	int server_fd;
@@ -37,7 +38,7 @@ void plug_post_load(void *state) {
 	Plug *cpy = (Plug *) state;
 	plug_init();
 
-	memcpy(plug, cpy, sizeof(Plug));
+	close(cpy->server_fd);
 	free(cpy);
 	fprintf(stderr, "Reloaded Global State\n");
 }

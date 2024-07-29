@@ -17,14 +17,11 @@ Nob_String_View CFLAGS_ARR[] = {
 };
 
 Nob_String_View LDFLAGS_ARR[] = {
-	(Nob_String_View) { .data = "-I./", .count = 12 },
-	(Nob_String_View) { .data = "-Wl,-rpath=./", .count = 21 },
 	(Nob_String_View) { .data = "-lz", .count = 3},
 	(Nob_String_View) { .data = "-lpthread", .count =  9 },
 };
 
 Nob_String_View PLUGFLAGS_ARR[] = {
-	(Nob_String_View) { .data = "-DSERVER_IMPLEMENTATION", .count = 23 },
 	(Nob_String_View) { .data = "-fPIC", .count = 5 },
 	(Nob_String_View) { .data = "-shared", .count = 8 },
 };
@@ -36,6 +33,10 @@ int main(int argc, char **argv) {
 	Nob_Cmd cmd = { 0 };
 	nob_cmd_append(&cmd, COMPILER);
 
+	for (int i = 0; i < sizeof(PLUGFLAGS_ARR) / sizeof(PLUGFLAGS_ARR[0]); i++) {
+		nob_cmd_append(&cmd, PLUGFLAGS_ARR[i].data);
+	}
+
 	nob_cmd_append(&cmd, "-o", "libserver.so");
 	nob_cmd_append(&cmd, "server.c", "plug.c");
 
@@ -45,10 +46,6 @@ int main(int argc, char **argv) {
 
 	for (int i = 0; i < sizeof(LDFLAGS_ARR) / sizeof(LDFLAGS_ARR[0]); i++) {
 		nob_cmd_append(&cmd, LDFLAGS_ARR[i].data);
-	}
-
-	for (int i = 0; i < sizeof(PLUGFLAGS_ARR) / sizeof(PLUGFLAGS_ARR[0]); i++) {
-		nob_cmd_append(&cmd, PLUGFLAGS_ARR[i].data);
 	}
 
 	if (!nob_cmd_run_sync(cmd)) return 1;
