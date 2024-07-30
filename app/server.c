@@ -12,6 +12,25 @@
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
+void get_file_path_from_fd(int fd) {
+    char path[PATH_MAX];
+    char fd_path[256];
+    ssize_t n;
+
+    // Construct the path to the file descriptor link in /proc
+    snprintf(fd_path, sizeof(fd_path), "/proc/self/fd/%d", fd);
+
+    // Read the symbolic link
+    n = readlink(fd_path, path, sizeof(path) - 1);
+    if (n < 0) {
+        perror("readlink");
+        exit(EXIT_FAILURE);
+    }
+    path[n] = '\0'; // Null-terminate the string
+
+    printf("The path is: %s\n", path);
+}
+
 char* hexdump(char* data, size_t len) {
 
 	size_t hex_str_len = len * 4;
@@ -353,9 +372,11 @@ void serve(int client_fd) {
 			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
 			}
 
+			get_file_path_from_fd(fp->_fileno);
+
 			// Close the file
 			fclose(fp);
-
+			
 			// Send the response
 			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %ld\r\n\r\n%s", data_size, (char *) data);
 
@@ -415,12 +436,6 @@ void serve(int client_fd) {
 			printf("Content to Write: %s\n", token.data);
 
 			fwrite(token.data, sizeof(char), token.count, fp);
-			// print path to created File
-
-			char* cmd = malloc(32);
-			sscanf(cmd, "ls -l %s", filename);
-			system(cmd);
-			free(cmd);
 
 			fclose(fp);
 
