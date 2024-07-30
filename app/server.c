@@ -333,6 +333,7 @@ void serve(int client_fd) {
 			printf("ReqPath: %s\n", reqPath);
 
 			char filename[256];
+			fprintf(stdout, "Dir: %s\n", dir);
 			sprintf(filename, "%s%s", dir, reqPath);
 			printf("Filename: %s\n", filename);
 
