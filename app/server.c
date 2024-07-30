@@ -12,6 +12,9 @@
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
+
+extern Plug *plug;
+
 void get_file_path_from_fd(int fd) {
     char path[PATH_MAX];
     char fd_path[256];
@@ -241,8 +244,7 @@ RESPONSE_TYPE getResponseType(char* path, char* method) {
 }
 
 void serve(int client_fd) {
-	// char* dir = plug->dir;
-	char* dir = "./";
+	char* dir = plug->dir;
 	char readbuf[2048];
 
 	int bytesread = recv(client_fd, readbuf, sizeof(readbuf), 0);

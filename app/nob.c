@@ -141,7 +141,7 @@ bool build_server() {
 
 	if (nob_file_exists("./app")) {
 		nob_cmd_append(&cmd, "-o", "./app/libserver.so");
-		nob_cmd_append(&cmd, "./app/server.c", "./app/plug.c");
+		nob_cmd_append(&cmd, "./app/plug.c", "./app/server.c");
 	} else {
 		nob_cmd_append(&cmd, "server.c", "plug.c");
 		nob_cmd_append(&cmd, "-o", "./libserver.so");

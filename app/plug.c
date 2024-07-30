@@ -13,7 +13,7 @@
 
 #include "server.h"
 
-static Plug *plug = NULL;
+Plug *plug = NULL;
 
 void plug_update() {
 	server_loop(plug->server_fd);
@@ -32,6 +32,8 @@ void plug_post_load(void *state) {
 	fprintf(stderr, "Plug Loaded\n");
 	Plug *cpy = (Plug *) state;
 	plug_init();
+	plug->dir = cpy->dir;
+	fprintf(stderr, "Saved Dir: %s\n", plug->dir);
 
 	close(cpy->server_fd);
 	free(cpy);
