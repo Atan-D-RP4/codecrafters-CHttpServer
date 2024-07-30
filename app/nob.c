@@ -6,7 +6,7 @@
 
 #define COMPILER "clang"
 
-bool hot_reload = true;
+bool hot_reload = false;
 
 Nob_String_View CFLAGS_ARR[] = {
 	(Nob_String_View) { .data = "-Wall", .count = 5 },
@@ -50,13 +50,13 @@ int main(int argc, char **argv) {
 	}
 
 	if (strcmp(subcmd, "build") == 0) {
-		if (!build_main()) {
-			fprintf(stderr, "Failed to build main\n");
+		if (!build_server()) {
+			fprintf(stderr, "Failed to build server\n");
 			return 1;
 		}
 
-		if (!build_server()) {
-			fprintf(stderr, "Failed to build server\n");
+		if (!build_main()) {
+			fprintf(stderr, "Failed to build main\n");
 			return 1;
 		}
 	} else if (strcmp(subcmd, "reload") == 0) {
@@ -67,11 +67,11 @@ int main(int argc, char **argv) {
 	} else if (strcmp(subcmd, "run") == 0) {
 		Nob_Cmd cmd = { 0 };
 		nob_cmd_append(&cmd, "./main");
-		if (!nob_cmd_run_async(cmd)) return 1;
+		if (!nob_cmd_run_sync(cmd)) return 1;
 	} else if (strcmp(subcmd, "clean") == 0) {
 		Nob_Cmd cmd = { 0 };
 		nob_cmd_append(&cmd, "rm", "main", "libserver.so", "nob", "nob.old" );
-		if (!nob_cmd_run_async(cmd)) return 1;
+		if (!nob_cmd_run_sync(cmd)) return 1;
 	} else {
 		fprintf(stderr, "Unknown subcommand: %s\n", subcmd);
 		return 1;
@@ -113,7 +113,7 @@ bool build_main() {
 		nob_cmd_append(&cmd, CFLAGS_ARR[i].data);
 	}
 
-	if (!nob_cmd_run_async(cmd)) return false;
+	if (!nob_cmd_run_sync(cmd)) return false;
 
 	return true;
 }
@@ -131,7 +131,7 @@ bool build_server() {
 		nob_cmd_append(&cmd, "./app/server.c", "./app/plug.c");
 	} else {
 		nob_cmd_append(&cmd, "server.c", "plug.c");
-		nob_cmd_append(&cmd, "-o", "libserver.so");
+		nob_cmd_append(&cmd, "-o", "./libserver.so");
 	}
 
 	for (int i = 0; i < sizeof(CFLAGS_ARR) / sizeof(CFLAGS_ARR[0]); i++) {
@@ -142,7 +142,7 @@ bool build_server() {
 		nob_cmd_append(&cmd, LDFLAGS_ARR[i].data);
 	}
 
-	if (!nob_cmd_run_async(cmd)) return false;
+	if (!nob_cmd_run_sync(cmd)) return false;
 
 	return true;
 }
