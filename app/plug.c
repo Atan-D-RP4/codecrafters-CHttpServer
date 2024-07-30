@@ -13,11 +13,6 @@
 
 #include "server.h"
 
-typedef struct {
-	int server_fd;
-	char *dir;
-} Plug;
-
 static Plug *plug = NULL;
 
 void plug_update() {

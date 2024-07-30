@@ -7,6 +7,9 @@
 # DON'T EDIT THIS!
 set -e
 tmpFile=$(mktemp)
-echo "gcc -lcurl -lz app/*.c -o $tmpFile"
-gcc -lcurl -lz app/*.c -o $tmpFile
+echo "Compiling..."
+gcc -o app/nob app/nob.c
+echo "$tmpFile"
+make app/nob
+./app/nob build "$tmpFile"
 exec "$tmpFile" "$@"

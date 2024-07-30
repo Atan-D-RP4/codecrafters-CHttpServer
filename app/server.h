@@ -6,6 +6,11 @@
 #include <stdlib.h>
 
 typedef struct {
+	int server_fd;
+	char *dir;
+} Plug;
+
+typedef struct {
 	char method[16];
 	char path[256];
 	char reqtype[16];
@@ -36,4 +41,4 @@ void server_loop(int server_fd);
 Header* parseHeaders(char* readbuf, int bytesread);
 RESPONSE_TYPE getResponseType(char* path, char* method);
 
-#endif // SERVER_H_ 
+#endif // SERVER_H_
