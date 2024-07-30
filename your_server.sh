@@ -7,9 +7,7 @@
 # DON'T EDIT THIS!
 set -e
 tmpFile=$(mktemp)
-echo "Compiling..."
-gcc -o app/nob app/nob.c
 echo "$tmpFile"
-make app/nob
-./app/nob build "$tmpFile"
+clang -fPIC -shared -o ./app/libserver.so ./app/server.c ./app/plug.c -Wall -Wextra -pedantic -O3 -ggdb -lz -lpthread
+clang -o $tmpFile ./app/main.c ./app/libserver.so -Wall -Wextra -pedantic -O3 -ggdb
 exec "$tmpFile" "$@"
