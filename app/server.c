@@ -241,6 +241,7 @@ RESPONSE_TYPE getResponseType(char* path, char* method) {
 }
 
 void serve(int client_fd) {
+	// char* dir = plug->dir;
 	char* dir = "./";
 	char readbuf[2048];
 
@@ -333,7 +334,6 @@ void serve(int client_fd) {
 			printf("ReqPath: %s\n", reqPath);
 
 			char filename[256];
-			fprintf(stdout, "Dir: %s\n", dir);
 			sprintf(filename, "%s%s", dir, reqPath);
 			printf("Filename: %s\n", filename);
 
@@ -384,9 +384,6 @@ void serve(int client_fd) {
 		} break;
 
 		case POST_FILE: {
-			// Print the current working directory
-			system("pwd");
-
 			// parse the file path
 			reqPath = strtok(reqPath, "/");
 			printf("ReqPath: %s\n", reqPath);
@@ -395,6 +392,7 @@ void serve(int client_fd) {
 
 			char filename[256];
 			sprintf(filename, "%s%s", dir, reqPath);
+			fprintf(stdout, "Dir: %s\n", dir);
 			printf("Filename: %s\n", filename);
 
 			FILE *fp = fopen(filename, "wb");
