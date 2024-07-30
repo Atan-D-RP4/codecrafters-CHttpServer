@@ -372,11 +372,11 @@ void serve(int client_fd) {
 			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
 			}
 
-			get_file_path_from_fd(fp->_fileno);
+			get_file_path_from_fd(open(filename, O_RDONLY));
 
 			// Close the file
 			fclose(fp);
-			
+
 			// Send the response
 			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %ld\r\n\r\n%s", data_size, (char *) data);
 
