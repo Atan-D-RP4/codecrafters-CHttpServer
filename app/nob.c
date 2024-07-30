@@ -6,7 +6,7 @@
 
 #define COMPILER "clang"
 
-bool hot_reload = false;
+bool hot_reload = true;
 
 Nob_String_View CFLAGS_ARR[] = {
 	(Nob_String_View) { .data = "-Wall", .count = 5 },
@@ -66,6 +66,9 @@ int main(int argc, char **argv) {
 		}
 	} else if (strcmp(subcmd, "run") == 0) {
 		Nob_Cmd cmd = { 0 };
+		if (!build_server()) return 1;
+		if (!build_main()) return 1;
+
 		if (nob_file_exists("app")) {
 			nob_cmd_append(&cmd, "./app/main");
 		} else {
@@ -129,6 +132,8 @@ bool build_main() {
 bool build_server() {
 	Nob_Cmd cmd = { 0 };
 	nob_cmd_append(&cmd, COMPILER);
+
+	// Print Current working directory
 
 	for (int i = 0; i < sizeof(PLUGFLAGS_ARR) / sizeof(PLUGFLAGS_ARR[0]); i++) {
 		nob_cmd_append(&cmd, PLUGFLAGS_ARR[i].data);

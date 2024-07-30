@@ -38,12 +38,13 @@ char* hexdump(char* data, size_t len) {
 int gzip(const char *input, size_t input_len, unsigned char **output, size_t *output_len) {
 	// Estimate the maximum compressed length and allocate memory
 	size_t max_compressed_len = compressBound(input_len);
-	*output = malloc(max_compressed_len);
+	*output = calloc(1, max_compressed_len);
 
 	z_stream zs = {
 		.zalloc = Z_NULL,
 		.zfree = Z_NULL,
 		.opaque = Z_NULL,
+
 		.avail_in = input_len,
 		.next_in = (unsigned char *)input,
 		.avail_out = max_compressed_len,
@@ -250,6 +251,7 @@ void serve(int client_fd) {
 	int bytessent;
 	char response[512];
 	int contentLength;
+	char* content = NULL;
 
 	switch(type) {
 		case INDEX: {
@@ -262,10 +264,10 @@ void serve(int client_fd) {
 			reqPath = strtok(reqPath, "/");
 			reqPath = strtok(NULL, "");
 
-			char *content = reqPath;
+			content = reqPath;
 			contentLength = strlen(content);
 
-			char *compressed = NULL;
+			unsigned char *compressed = NULL;
 			size_t compressedLength = 0;
 
 			char* useEncoding = header->useEncoding;
@@ -275,34 +277,19 @@ void serve(int client_fd) {
 				   printf("Failed to compress content\n");
 				   strcpy(useEncoding, "identity");
 			   } else {
-				   content = compressed;
+				   content = (char *) compressed;
 				   contentLength = compressedLength;
-				   fprintf(stdout, "Compressed Content: %d\n", contentLength);
-				   fprintf(stdout, "Compressed Content:\n%s\n", content);
 			   }
 			}
 
 			if (strlen(useEncoding) > 0) {
-			   sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-					   useEncoding, contentLength, content);
+			   sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n",
+					   useEncoding, contentLength);
 			} else {
-			   sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-					   contentLength, content);
+			   sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n",
+					   contentLength);
 			}
 			fprintf(stdout, "Response:\n%s\n", response);
-
-			bytessent = send(client_fd, response, strlen(response), 0);
-			if (bytessent < 0) {
-			   printf("Send failed: %s\n", strerror(errno));
-			   if (compressed) free(compressed);
-			   return;
-			}
-			bytessent = send(client_fd, content, contentLength, 0);
-			if (bytessent < 0) {
-			   printf("Send failed: %s\n", strerror(errno));
-			}
-			if (compressed) free(compressed);
-			return;
 
 		} break;
 
@@ -334,6 +321,9 @@ void serve(int client_fd) {
 			    printf("File not found: %s\n", filename);
 			    sprintf(response, "HTTP/1.1 404 Not Found\r\n\r\n");
 			    bytessent = send(client_fd, response, strlen(response), 0);
+
+				return;
+
 			} else if (strcmp(reqPath, "/redirect") == 0) {
 			    sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
 			} else if (strcmp(reqPath, "/error") == 0) {
@@ -448,6 +438,16 @@ void serve(int client_fd) {
 	if (bytessent < 0) {
 		printf("Send failed: %s \n", strerror(errno));
 		return;
+	}
+	fprintf(stdout, "Sent %d bytes\n", bytessent);
+	bytessent = send(client_fd, content, contentLength, 0);
+	if (bytessent < 0) {
+		printf("Send failed: %s \n", strerror(errno));
+		return;
+	}
+	fprintf(stdout, "Sent %d bytes\n", bytessent);
+	if (strcmp(header->useEncoding, "gzip") == 0 && content != NULL){
+		free(content);
 	}
 	free(header);
 }

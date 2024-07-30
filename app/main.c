@@ -35,12 +35,14 @@ void* reload_plug(void* arg) {
 				return NULL;
 			}
 			plug_post_load(state);
+			loaded++;
+			printf("Reloaded %ld times\n", loaded);
+		} else if (strncmp(read, "clear", 5) == 0) {
+			system("clear");
 		} else {
 			fprintf(stdout, "Invalid command\n");
 			continue;
 		}
-		loaded++;
-		printf("Reloaded %ld times\n", loaded);
 	}
 }
 
@@ -60,7 +62,11 @@ int main(int argc, char **argv) {
 		dir = argv[2];
 
 #ifdef HOT_RELOADABLE
-	set_libplug_path("./libserver.so");
+	if (nob_file_exists("./app")) {
+		set_libplug_path("./app/libserver.so");
+	} else {
+		set_libplug_path("./libserver.so");
+	}
 #endif
 
 	if(!reload_libplug()) {
@@ -77,15 +83,23 @@ int main(int argc, char **argv) {
 		}
 		plug_post_load(state);
 
-#ifdef HOT_RELOADABLE
-		pthread_t inp_thread;
-		pthread_create(&inp_thread, NULL, reload_plug, NULL);
-		pthread_join(inp_thread, NULL);
-		pthread_detach(inp_thread);
-#endif
 		pthread_t app_thread;
+		#ifdef HOT_RELOADABLE
+		pthread_t inp_thread;
+		#endif
+
 		pthread_create(&app_thread, NULL, app, NULL);
+		#ifdef HOT_RELOADABLE
+		pthread_create(&inp_thread, NULL, reload_plug, NULL);
+		#endif
+
+		#ifdef HOT_RELOADABLE
+		pthread_join(inp_thread, NULL);
+		#endif
 		pthread_join(app_thread, NULL);
+		#ifdef HOT_RELOADABLE
+		pthread_detach(inp_thread);
+		#endif
 		pthread_detach(app_thread);
 
 	} plug_free();
