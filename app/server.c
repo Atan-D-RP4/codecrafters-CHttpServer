@@ -361,6 +361,8 @@ void serve(int client_fd) {
 		} break;
 
 		case POST_FILE: {
+			// Print the current working directory
+			system("pwd");
 
 			// parse the file path
 			reqPath = strtok(reqPath, "/");
