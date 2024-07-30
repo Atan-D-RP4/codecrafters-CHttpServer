@@ -66,11 +66,19 @@ int main(int argc, char **argv) {
 		}
 	} else if (strcmp(subcmd, "run") == 0) {
 		Nob_Cmd cmd = { 0 };
-		nob_cmd_append(&cmd, "./main");
+		if (nob_file_exists("app")) {
+			nob_cmd_append(&cmd, "./app/main");
+		} else {
+			nob_cmd_append(&cmd, "./main");
+		}
 		if (!nob_cmd_run_sync(cmd)) return 1;
 	} else if (strcmp(subcmd, "clean") == 0) {
 		Nob_Cmd cmd = { 0 };
-		nob_cmd_append(&cmd, "rm", "main", "libserver.so", "nob", "nob.old" );
+		if (nob_file_exists("app")) {
+			nob_cmd_append(&cmd, "rm", "app/main", "app/libserver.so", "app/nob", "app/nob.old" );
+		} else {
+			nob_cmd_append(&cmd, "rm", "main", "libserver.so", "nob", "nob.old" );
+		}
 		if (!nob_cmd_run_sync(cmd)) return 1;
 	} else {
 		fprintf(stderr, "Unknown subcommand: %s\n", subcmd);
