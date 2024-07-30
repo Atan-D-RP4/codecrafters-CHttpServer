@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -414,6 +415,13 @@ void serve(int client_fd) {
 			printf("Content to Write: %s\n", token.data);
 
 			fwrite(token.data, sizeof(char), token.count, fp);
+			// print path to created File
+
+			char* cmd = malloc(32);
+			sscanf(cmd, "ls -l %s", filename);
+			system(cmd);
+			free(cmd);
+
 			fclose(fp);
 
 			sprintf(response, "HTTP/1.1 201 Created\r\nContent-Type: text/plain\r\nContent-Length: 0\r\n\r\n");
