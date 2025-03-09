@@ -120,11 +120,9 @@ int simpleServer() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	printf("Logs from your program will appear here!\n");
 
-	int server_fd;
-
-	server_fd = socket(AF_INET, SOCK_STREAM, 0);
+	int server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd == -1) {
-		printf("Socket creation failed: %s...\n", strerror(errno));
+		fprintf(stderr, "Socket creation failed: %s...\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
 
@@ -278,7 +276,11 @@ void serve(int client_fd) {
 
 	switch(type) {
 		case INDEX: {
-			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\n\r\nHello World");
+			sprintf(response, "HTTP/1.1 200 OK\r\n"
+					"Content-Type: text/html\r\n"
+					"Content-Length: 11\r\n"
+					"\r\n"
+					"Hello World");
 		} break;
 
 		case ECHO: {
@@ -306,10 +308,17 @@ void serve(int client_fd) {
 			}
 
 			if (strlen(useEncoding) > 0) {
-			   sprintf(response, "HTTP/1.1 200 OK\r\nContent-Encoding: %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n",
+			   sprintf(response, "HTTP/1.1 200 OK\r\n"
+					   "Content-Encoding: %s\r\n"
+					   "Content-Type: text/plain\r\n"
+					   "Content-Length: %d\r\n"
+					   "\r\n",
 					   useEncoding, contentLength);
 			} else {
-			   sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n",
+			   sprintf(response, "HTTP/1.1 200 OK\r\n"
+					   "Content-Type: text/plain\r\n"
+					   "Content-Length: %d\r\n"
+					   "\r\n",
 					   contentLength);
 			}
 			fprintf(stdout, "Response:\n%s\n", response);
@@ -323,7 +332,11 @@ void serve(int client_fd) {
 
 			 // parse the body from the request
 			 contentLength = strlen(userAgent);
-			 sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", contentLength, userAgent);
+			 sprintf(response, "HTTP/1.1 200 OK\r\n"
+					 "Content-Type: text/plain\r\n"
+					 "Content-Length: %d\r\n"
+					 "\r\n"
+					 "%s", contentLength, userAgent);
 
 		} break;
 
@@ -342,22 +355,27 @@ void serve(int client_fd) {
 			FILE *fp = fopen(filename, "rb");
 			if (!fp) {
 			    printf("File not found: %s\n", filename);
-			    sprintf(response, "HTTP/1.1 404 Not Found\r\n\r\n");
+			    sprintf(response, "HTTP/1.1 404 Not Found\r\n"
+						"\r\n");
 			    bytessent = send(client_fd, response, strlen(response), 0);
 
 				return;
 
 			} else if (strcmp(reqPath, "/redirect") == 0) {
-			    sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+			    sprintf(response, "HTTP/1.1 301 Moved Permanently\r\n"
+						"Location: http://www.google.com\r\n"
+						"\r\n");
 			} else if (strcmp(reqPath, "/error") == 0) {
-			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
+			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n"
+						"\r\n");
 			}  else {
 			    printf("Opening file %s\n", filename);
 			}
 
 			if (fseek(fp, 0, SEEK_END) < 0) {
 			    printf("Seek failed: %s\n", strerror(errno));
-			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
+			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n"
+						"\r\n");
 			}
 
 			// Get the size of the file
@@ -372,7 +390,8 @@ void serve(int client_fd) {
 			// Fill the data buffer
 			if (fread(data, 1, data_size, fp) != data_size) {
 			    printf("Read failed: %s\n", strerror(errno));
-			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
+			    sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n"
+						"\r\n");
 			}
 
 			get_file_path_from_fd(open(filename, O_RDONLY));
@@ -381,7 +400,11 @@ void serve(int client_fd) {
 			fclose(fp);
 
 			// Send the response
-			sprintf(response, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %ld\r\n\r\n%s", data_size, (char *) data);
+			sprintf(response, "HTTP/1.1 200 OK\r\n"
+					"Content-Type: application/octet-stream\r\n"
+					"Content-Length: %ld\r\n"
+					"\r\n"
+					"%s", data_size, (char *) data);
 
 		} break;
 
@@ -400,12 +423,16 @@ void serve(int client_fd) {
 			FILE *fp = fopen(filename, "wb");
 			if (!fp) {
 				printf("Failed to open file: %s\n", filename);
-				sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n\r\n");
+				sprintf(response, "HTTP/1.1 404 NOT FOUND\r\n"
+						"\r\n");
 				bytessent = send(client_fd, response, strlen(response), 0);
 			} else if (strcmp(reqPath, "/redirect") == 0) {
-				sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+				sprintf(response, "HTTP/1.1 301 Moved Permanently\r\n"
+						"Location: http://www.google.com\r\n"
+						"\r\n");
 			} else if (strcmp(reqPath, "/error") == 0) {
-				sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n");
+				sprintf(response, "HTTP/1.1 500 INTERNAL SERVER ERROR\r\n"
+						"\r\n");
 			} else {
 				printf("Creating file %s\n", filename);
 			}
@@ -440,20 +467,27 @@ void serve(int client_fd) {
 
 			fclose(fp);
 
-			sprintf(response, "HTTP/1.1 201 Created\r\nContent-Type: text/plain\r\nContent-Length: 0\r\n\r\n");
+			sprintf(response, "HTTP/1.1 201 Created\r\n"
+					"Content-Type: text/plain\r\n"
+					"Content-Length: 0\r\n"
+					"\r\n");
 
 		} break;
 
 		case REDIRECT: {
-			sprintf(response, "HTTP/1.1 301 Moved Permanently\r\nLocation: http://www.google.com\r\n\r\n");
+			sprintf(response, "HTTP/1.1 301 Moved Permanently\r\n"
+					"Location: http://www.google.com\r\n"
+					"\r\n");
 		} break;
 
 		case ERROR: {
-			sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n\r\n");
+			sprintf(response, "HTTP/1.1 500 Internal Server Error\r\n"
+					"\r\n");
 		} break;
 
 		case NOT_FOUND: {
-			sprintf(response, "HTTP/1.1 404 Not Found\r\n\r\n");
+			sprintf(response, "HTTP/1.1 404 Not Found\r\n"
+					"\r\n");
 		} break;
 
 		default: return;
@@ -478,30 +512,3 @@ void serve(int client_fd) {
 	free(header);
 }
 
-void server_loop(int server_fd) {
-	int client_addr_len;
-	struct sockaddr_in client_addr;
-	printf("Waiting for a client to connect...\n");
-	client_addr_len = sizeof(client_addr);
-	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t*) &client_addr_len);
-	if (client_fd < 0) {
-		printf("Accept failed: %s \n", strerror(errno));
-		return;
-	}
-	printf("Client connected\n");
-
-	pid_t pid = fork();
-	if (pid == -1) {
-		printf("Fork failed: %s\n", strerror(errno));
-		close(client_fd);
-		return;
-	} else if (pid == 0) {
-		// Child process
-		close(server_fd);
-		serve(client_fd);
-		exit(0);
-	} else {
-		// Parent process
-		close(client_fd);
-	}
-}
